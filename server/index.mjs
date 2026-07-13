@@ -208,9 +208,9 @@ const server = http.createServer(async (req, res) => {
           insertReward.run(randomUUID(), body.patientId, `${visitId}:${result.id}`, `dept-${result.id}`, result.sticker, now);
         }
         const followUpPlan = [
-          [1, 'energy_check', '能量回访小明星'],
-          [3, 'recovery_challenge', '恢复挑战冠军'],
-          [7, 'final_review', '完全康复金印章'],
+          [1, 'energy_check', '能量观察记录星'],
+          [3, 'recovery_challenge', '亲子恢复记录章'],
+          [7, 'final_review', '完全康复纪念章'],
         ];
         const insertFollow = db.prepare('INSERT INTO follow_ups(id,visit_id,patient_id,sequence,type,due_at,reward) VALUES(?,?,?,?,?,?,?)');
         for (const [day, type, reward] of followUpPlan) insertFollow.run(randomUUID(), visitId, body.patientId, day, type, addDays(now, day), reward);
