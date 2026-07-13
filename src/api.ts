@@ -34,7 +34,7 @@ export type VisitRecord = {
   diagnosisCode: string;
   startedAt: string;
   completedAt: string;
-  results: Array<{ id: string; name: string; summary: string; detail: string; score: number; sticker: string; icon?: string; diagnosisEmoji?: string; findings?: Array<{ icon: string; label: string; value: string }>; prescription?: Array<{ icon: string; text: string; targetCount: number }>; drawPrompt?: string; seed?: number }>;
+  results: Array<{ id: string; name: string; summary: string; detail: string; score: number; sticker: string; icon?: string; diagnosisEmoji?: string; findings?: Array<{ icon: string; label: string; value: string }>; prescription?: Array<{ icon: string; text: string; targetCount: number }>; drawPrompt?: string; seed?: number; worksheet?: { templateId: string; version: number; seed: number; activityKind: 'draw' | 'color' | 'cut' | 'trace' | 'maze'; tokens?: string[]; generatedAt: string; printedAt?: string; completedAt?: string } }>;
 };
 
 export type RewardRecord = { id: string; code: string; name: string; earnedAt: string };
