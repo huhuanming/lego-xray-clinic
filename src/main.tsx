@@ -25,11 +25,20 @@ import {
 import './styles.css';
 import { clinicApi, type ApiPatient, type FollowUpRecord, type HistoryResponse } from './api';
 import { preparePatientPhoto } from './photo';
+import {
+  buildingFloors,
+  buildTreatmentRoute,
+  departmentCards,
+  isDepartmentId,
+  symptomIcons,
+  symptoms,
+  type BuildingRoom,
+  type DepartmentId,
+  type Symptom,
+} from './clinic-config';
 
 type BodyPart = '全身' | '头部' | '胸部' | '肚子' | '腿部';
-type Symptom = '没精神' | '肚子痛' | '走路咔嗒响' | '头晕晕' | '笑不出来' | '骨头松松的' | '外壳擦伤' | '肚肚咕噜' | '身体热热的';
-type DepartmentId = 'xray' | 'orthopedics' | 'internal' | 'heart' | 'gastro' | 'surgery' | 'dental' | 'pharmacy';
-type WorksheetActivityKind = 'draw' | 'color' | 'cut' | 'trace' | 'maze';
+type WorksheetActivityKind = 'draw' | 'color' | 'cut' | 'trace' | 'maze' | 'match' | 'find' | 'roleplay' | 'connect' | 'bingo';
 
 type WorksheetActivity = {
   templateId: string;
@@ -98,7 +107,6 @@ type Report = {
 };
 
 const bodyParts: BodyPart[] = ['全身', '头部', '胸部', '肚子', '腿部'];
-const symptoms: Symptom[] = ['没精神', '肚子痛', '走路咔嗒响', '头晕晕', '笑不出来', '骨头松松的', '外壳擦伤', '肚肚咕噜', '身体热热的'];
 
 const bodyPartIcons: Record<BodyPart, string> = {
   全身: '🧍',
@@ -108,17 +116,6 @@ const bodyPartIcons: Record<BodyPart, string> = {
   腿部: '🦵',
 };
 
-const symptomIcons: Record<Symptom, string> = {
-  没精神: '😴',
-  肚子痛: '😣',
-  走路咔嗒响: '🦿',
-  头晕晕: '😵‍💫',
-  笑不出来: '☹️',
-  骨头松松的: '🦴',
-  外壳擦伤: '🩹',
-  肚肚咕噜: '🫧',
-  身体热热的: '🌡️',
-};
 
 function patientFromApi(patient: ApiPatient, symptoms: Symptom[] = []): Patient {
   return {
@@ -762,64 +759,6 @@ function FollowUpCenter({ patient, history, onBack, onComplete, onPrint }: { pat
   );
 }
 
-const departmentCards: Array<{ id: DepartmentId; icon: string; name: string; subtitle: string; color: string; tile: string; description: string }> = [
-  { id: 'xray', icon: '🩻', name: 'X 光室', subtitle: '骨骼扫描', color: '#24cfc6', tile: '蓝色磁力片', description: '看看积木骨架和能量核心' },
-  { id: 'orthopedics', icon: '🦴', name: '骨科', subtitle: '骨骼工程', color: '#45a9df', tile: '浅蓝磁力片', description: '把骨骼积木放回正确位置' },
-  { id: 'internal', icon: '🩺', name: '能量内科', subtitle: '身体仪表', color: '#ef8b52', tile: '橙色磁力片', description: '检查温度、睡眠和呼吸泡泡' },
-  { id: 'heart', icon: '💓', name: '心脏科', subtitle: '心跳检查', color: '#ff6a5b', tile: '红色磁力片', description: '跟着咚咚节奏点亮勇气核心' },
-  { id: 'gastro', icon: '🫃', name: '肠胃科', subtitle: '肚肚列车', color: '#9a75d6', tile: '紫色磁力片', description: '帮食物列车通过肚肚迷宫' },
-  { id: 'surgery', icon: '🩹', name: '积木外科', subtitle: '外壳维修', color: '#eb6687', tile: '粉色磁力片', description: '清洁、贴补丁、包好创可贴' },
-  { id: 'dental', icon: '🦷', name: '牙科', subtitle: '糖果虫清理', color: '#f5b82e', tile: '黄色磁力片', description: '找出藏在牙齿里的糖果虫' },
-  { id: 'pharmacy', icon: '💊', name: '彩虹药房', subtitle: '能量配药', color: '#58b96a', tile: '绿色磁力片', description: '按处方装好三种彩色能量' },
-];
-
-function buildTreatmentRoute(selectedSymptoms: Symptom[]): DepartmentId[] {
-  const route: DepartmentId[] = [];
-  const add = (...ids: DepartmentId[]) => ids.forEach((id) => { if (!route.includes(id)) route.push(id); });
-  if (selectedSymptoms.some((item) => ['走路咔嗒响', '骨头松松的'].includes(item))) add('xray', 'orthopedics');
-  if (selectedSymptoms.includes('外壳擦伤')) add('surgery', 'orthopedics');
-  if (selectedSymptoms.some((item) => ['肚子痛', '肚肚咕噜'].includes(item))) add('gastro', 'internal');
-  if (selectedSymptoms.some((item) => ['没精神', '头晕晕', '笑不出来', '身体热热的'].includes(item))) add('internal', 'heart');
-  if (!route.length) add('xray');
-  return [...route.slice(0, 4), 'pharmacy'];
-}
-
-type BuildingRoom = {
-  route: string;
-  icon: string;
-  name: string;
-  childHint: string;
-  color: string;
-  departmentId?: DepartmentId;
-};
-
-const buildingFloors: Array<{ floor: number; name: string; rooms: [BuildingRoom, BuildingRoom] }> = [
-  { floor: 6, name: '康复屋顶', rooms: [
-    { route: 'discharge', icon: '🎖️', name: '出院中心', childHint: '领勇敢证书', color: '#9b6bd1' },
-    { route: 'followups', icon: '☎️', name: '回访中心', childHint: '接医生电话', color: '#ef765b' },
-  ] },
-  { floor: 5, name: '彩虹护理层', rooms: [
-    { route: 'dental', icon: '🦷', name: '牙科', childHint: '赶走糖果虫', color: '#f5b82e', departmentId: 'dental' },
-    { route: 'pharmacy', icon: '💊', name: '彩虹药房', childHint: '配能量药', color: '#58b96a', departmentId: 'pharmacy' },
-  ] },
-  { floor: 4, name: '积木修理层', rooms: [
-    { route: 'gastro', icon: '🫃', name: '肠胃科', childHint: '开动肚肚列车', color: '#9a75d6', departmentId: 'gastro' },
-    { route: 'surgery', icon: '🩹', name: '积木外科', childHint: '修好小小擦伤', color: '#eb6687', departmentId: 'surgery' },
-  ] },
-  { floor: 3, name: '能量检查层', rooms: [
-    { route: 'internal', icon: '🩺', name: '能量内科', childHint: '调好身体仪表', color: '#ef8b52', departmentId: 'internal' },
-    { route: 'heart', icon: '💓', name: '心脏科', childHint: '听咚咚心跳', color: '#ff6a5b', departmentId: 'heart' },
-  ] },
-  { floor: 2, name: '骨骼检查层', rooms: [
-    { route: 'xray', icon: '🩻', name: 'X 光室', childHint: '看看积木骨架', color: '#24cfc6', departmentId: 'xray' },
-    { route: 'orthopedics', icon: '🦴', name: '骨科', childHint: '拼好骨骼积木', color: '#45a9df', departmentId: 'orthopedics' },
-  ] },
-  { floor: 1, name: '欢迎大厅', rooms: [
-    { route: 'triage', icon: '👩‍⚕️', name: '挂号台', childHint: '告诉护士哪里痛', color: '#ffca28' },
-    { route: 'records', icon: '📖', name: '病历室', childHint: '翻翻照片病历', color: '#4aa89a' },
-  ] },
-];
-
 function HospitalBuilding({ journey, history, onRoute }: { journey: JourneyState; history: HistoryResponse; onRoute: (route: string) => void }) {
   const visited = new Set(journey.results.map((result) => result.id));
   const pendingFollowUps = history.followUps.filter((item) => item.status === 'pending');
@@ -858,29 +797,28 @@ function HospitalBuilding({ journey, history, onRoute }: { journey: JourneyState
         {buildingFloors.map((level) => (
           <div key={level.floor} className={`building-floor floor-${level.floor} ${level.floor === nextFloor ? 'is-current' : ''}`}>
             <div className="floor-sign"><strong>{level.floor}F</strong><span>{level.name}</span></div>
-            {level.rooms.map((room, roomIndex) => {
-              const state = roomState(room);
-              return (
-                <React.Fragment key={room.route}>
-                  {roomIndex === 1 && <div className={`building-elevator ${level.floor === nextFloor ? 'arrived' : ''}`}>
-                    <span className="elevator-floor">{level.floor}</span>
-                    {level.floor === nextFloor ? <div className="elevator-car"><PatientAvatar patient={journey.patient} size="small"/><b>叮！</b></div> : <div className="elevator-doors"><i/><i/></div>}
-                  </div>}
-                  <button
-                    className={`building-room ${state.done ? 'done' : ''} ${state.locked ? 'locked' : ''} ${room.route === nextRoute ? 'recommended' : ''}`}
-                    style={{ '--room-accent': room.color } as React.CSSProperties}
-                    disabled={state.locked}
-                    onClick={() => onRoute(room.route)}
-                    aria-label={`${level.floor}楼${room.name}${state.badge ? `，${state.badge}` : ''}`}
-                  >
-                    {state.badge && <b className="room-badge">{state.badge}</b>}
-                    <span className="room-emoji">{room.icon}</span>
-                    <span className="room-copy"><strong>{room.name}</strong><small>{room.childHint}</small></span>
-                    <ChevronRight className="room-arrow" size={20}/>
-                  </button>
-                </React.Fragment>
-              );
-            })}
+            <div className={`building-room-grid room-count-${level.rooms.length}`}>
+              {level.rooms.map((room) => {
+                const state = roomState(room);
+                return <button
+                  key={room.route}
+                  className={`building-room ${state.done ? 'done' : ''} ${state.locked ? 'locked' : ''} ${room.route === nextRoute ? 'recommended' : ''}`}
+                  style={{ '--room-accent': room.color } as React.CSSProperties}
+                  disabled={state.locked}
+                  onClick={() => onRoute(room.route)}
+                  aria-label={`${level.floor}楼${room.name}${state.badge ? `，${state.badge}` : ''}`}
+                >
+                  {state.badge && <b className="room-badge">{state.badge}</b>}
+                  <span className="room-emoji">{room.icon}</span>
+                  <span className="room-copy"><strong>{room.name}</strong><small>{room.childHint}</small></span>
+                  <ChevronRight className="room-arrow" size={18}/>
+                </button>;
+              })}
+            </div>
+            <div className={`building-elevator ${level.floor === nextFloor ? 'arrived' : ''}`}>
+              <span className="elevator-floor">{level.floor}</span>
+              {level.floor === nextFloor ? <div className="elevator-car"><PatientAvatar patient={journey.patient} size="small"/><b>叮！</b></div> : <div className="elevator-doors"><i/><i/></div>}
+            </div>
           </div>
         ))}
         <div className="building-ground"><span>🚑</span><i/><i/><button onClick={() => onRoute('print')}><Printer size={16}/>纸上游戏打印机</button><i/><i/><span>🌳</span></div>
@@ -1091,7 +1029,7 @@ function makePharmacyResult(patient: Patient, previousResults: DepartmentResult[
   };
 }
 
-type ExpansionDepartmentId = 'orthopedics' | 'internal' | 'gastro' | 'surgery';
+type ExpansionDepartmentId = Exclude<DepartmentId, 'xray' | 'heart' | 'dental' | 'pharmacy'>;
 type ExpansionConfig = {
   id: ExpansionDepartmentId;
   name: string;
@@ -1108,6 +1046,7 @@ type ExpansionConfig = {
   causes: readonly string[];
   treatments: ReadonlyArray<readonly [string, string]>;
   steps: ReadonlyArray<readonly [string, string]>;
+  worksheetKind: WorksheetActivityKind;
 };
 
 const playfulCauses = [
@@ -1121,28 +1060,91 @@ const expansionConfigs: Record<ExpansionDepartmentId, ExpansionConfig> = {
     conditions: ['弹簧腿疲劳症','关节咔嗒打结症','骨骼积木排队症','鞋底不平衡症','膝盖齿轮偷懒症','手臂连接松松症','跑步缓冲不足症','身体支架歪歪症','跳跃弹力用完症','骨骼蓝图迷路症'],
     causes: playfulCauses,
     treatments: [['🧘','做三次慢慢伸展'],['🛏️','在软垫基地休息五分钟'],['🤗','收集三个加固拥抱'],['👣','沿直线慢慢走十步'],['🧱','搭一个骨骼支撑小屋'],['🌙','今晚给腿部充足睡眠'],['🥤','慢慢喝一杯能量水'],['🎵','跟着轻音乐摆摆手脚'],['🦸','暂停一次超级跳跃任务'],['⭐','每天涂亮一颗骨骼星']],
-    steps: [['🦶','装好小脚'],['🦵','接上腿部'],['🦴','放稳身体'],['💪','装好手臂']],
+    steps: [['🦶','装好小脚'],['🦵','接上腿部'],['🦴','放稳身体'],['💪','装好手臂']], worksheetKind: 'cut',
   },
   surgery: {
     id: 'surgery', name: '积木外科', icon: '🩹', color: '#eb6687', english: 'GENTLE REPAIR STATION', headline: '修好小小的', emphasis: '外壳擦伤', intro: '这里没有可怕的手术，只有清洁泡泡、彩色补丁和勇敢创可贴。', tile: '粉色磁力片', sticker: '温柔维修大师', drawPrompt: '给小患者设计一张最酷的创可贴',
     conditions: ['外壳擦花症','创可贴缺失症','零件轻微松动症','披风卡住症','按钮小磕碰症','头盔划痕症','手套磨损症','背包扣松松症','积木边角灰尘症','维修贴纸掉落症'],
     causes: playfulCauses,
     treatments: [['🫧','用想象泡泡轻轻清洁'],['🩹','贴好三枚勇敢补丁'],['🤗','维修后收集一个拥抱'],['🛋️','在维修站休息十分钟'],['🧸','请玩具护士陪伴'],['👐','轻轻检查四肢连接'],['🌈','给补丁画上彩虹'],['🛡️','今天穿好保护盔甲'],['⭐','每完成一次护理涂一颗星'],['💬','大声说我已经修好啦']],
-    steps: [['🫧','泡泡清洁'],['🔍','检查外壳'],['🟨','贴上补丁'],['🩹','盖好创可贴']],
+    steps: [['🫧','泡泡清洁'],['🔍','检查外壳'],['🟨','贴上补丁'],['🩹','盖好创可贴']], worksheetKind: 'cut',
   },
   internal: {
     id: 'internal', name: '能量内科', icon: '🩺', color: '#ef8b52', english: 'INNER ENERGY LAB', headline: '调好身体的', emphasis: '能量仪表', intro: '把温度、睡眠、呼吸泡泡和快乐电量全部充到绿色区域。', tile: '橙色磁力片', sticker: '身体仪表专家', drawPrompt: '画出身体里最亮的能量核心',
     conditions: ['能量电池不足症','睡眠充电失败症','快乐温度过高症','呼吸泡泡堵车症','故事装得太满症','核心亮度下降症','慢动作省电症','想象粒子迷路症','拥抱电量偏低症','午睡信号丢失症'],
     causes: playfulCauses,
     treatments: [['🌬️','做三次魔法深呼吸'],['🌙','提早进入枕头充电站'],['🥤','慢慢喝水补充能量'],['🤗','获得三个暖暖拥抱'],['🎵','听一首安静的小歌'],['🛋️','安静坐十分钟'],['☀️','到窗边收集温柔阳光'],['📚','一次只听一个故事'],['😄','讲一个让自己笑的笑话'],['⭐','每天记录一格快乐电量']],
-    steps: [['🌡️','调好温度'],['🌬️','疏通呼吸泡泡'],['🌙','补满睡眠'],['🔋','充好快乐电量']],
+    steps: [['🌡️','调好温度'],['🌬️','疏通呼吸泡泡'],['🌙','补满睡眠'],['🔋','充好快乐电量']], worksheetKind: 'color',
   },
   gastro: {
     id: 'gastro', name: '肠胃科', icon: '🫃', color: '#9a75d6', english: 'TUMMY TRAIN STATION', headline: '开动肚肚里的', emphasis: '食物列车', intro: '按顺序打开五座小车站，让苹果、水和饼干安全通过肚肚迷宫。', tile: '紫色磁力片', sticker: '肚肚列车长', drawPrompt: '画一条食物列车穿过的肚肚隧道',
     conditions: ['饼干碎屑塞车症','肚肚泡泡太多症','彩虹汤装太满症','消化齿轮偷懒症','苹果列车晚点症','喝水小河变窄症','早餐车站没开门症','肚肚鼓声太响症','蔬菜乘客迷路症','点心红灯等待症'],
     causes: playfulCauses,
     treatments: [['🥤','慢慢喝一小杯水'],['🍎','给苹果列车一个座位'],['🚶','饭后慢慢走十步'],['🫧','轻轻呼出三颗肚肚泡泡'],['🛋️','坐在软垫上休息'],['🥕','邀请一种彩色蔬菜乘车'],['⏰','让点心车站按时开门'],['🤗','给肚肚一个暖暖拥抱'],['🌙','睡觉时让消化齿轮休息'],['⭐','每次舒服一点就涂一颗星']],
-    steps: [['🍎','苹果站'],['🥤','水滴桥'],['🍪','饼干弯道'],['🫧','泡泡隧道'],['🏁','快乐终点']],
+    steps: [['🍎','苹果站'],['🥤','水滴桥'],['🍪','饼干弯道'],['🫧','泡泡隧道'],['🏁','快乐终点']], worksheetKind: 'maze',
+  },
+  ent: {
+    id: 'ent', name: '耳鼻喉科', icon: '👂', color: '#eb7969', english: 'SOUND & AIR EXPLORER', headline: '追踪身体里的', emphasis: '声音小火车', intro: '自动检查会在耳朵、鼻子和嗓音轨道中选择一条路线，把声音与空气画进操作纸。', tile: '珊瑚色磁力片', sticker: '声音空气探险家', drawPrompt: '画一辆能穿过耳朵的声音小火车',
+    conditions: ['回声积木松动症','喷嚏风车转太快症','嗓音列车晚点症','耳朵云朵塞车症','鼻子空气桥拥挤症','音符迷路症','花粉怪排队症','声音旋钮变小症','嗓音轨道沙沙症','空气泡泡绕路症'],
+    causes: playfulCauses,
+    treatments: [['👂','安静听三个小声音'],['🌬️','慢慢送出三颗空气泡泡'],['🎵','哼一段轻轻的旋律'],['🥤','慢慢喝一小杯能量水'],['🤫','让声音房间休息五分钟'],['🤗','收集一个安心拥抱'],['🪟','打开想象窗户换新空气'],['🔔','找出家里最轻的铃声'],['🖍️','给音符轨道涂上颜色'],['⭐','完成一次就画一颗回声星']],
+    steps: [['👂','连接耳朵接收器'],['👃','检查空气通道'],['🗣️','追踪嗓音轨道'],['🎵','打印声音地图']], worksheetKind: 'maze',
+  },
+  ophthalmology: {
+    id: 'ophthalmology', name: '眼科', icon: '👁️', color: '#567dd0', english: 'STARLIGHT FOCUS LAB', headline: '自动对准', emphasis: '星光焦点', intro: '星光仪会检查左右眼焦点、眨眼雨刷和颜色能量，不需要孩子在屏幕上认字。', tile: '宝蓝色磁力片', sticker: '星光观察员', drawPrompt: '设计一副能看见彩虹星球的眼镜',
+    conditions: ['星光焦点跑偏症','眨眼雨刷缺水症','彩虹颜色排队症','远方星星变小症','近处积木太忙症','左右眼接力晚点症','观察电池不足症','亮光精灵太调皮症','图形轨道绕弯症','眼睛休息铃没响症'],
+    causes: playfulCauses,
+    treatments: [['🌳','看看远处绿色基地'],['😌','闭眼让雨刷休息十秒'],['🪟','到窗边寻找三个形状'],['🎨','给纸眼镜涂上喜欢的颜色'],['🌙','今晚早点进入枕头基地'],['🤗','请家长读一张图形卡'],['🔵','寻找三件蓝色物品'],['👀','慢慢眨眼五次'],['📚','一次只看一页故事'],['⭐','完成观察后涂一颗星']],
+    steps: [['👁️','扫描左眼焦点'],['👁️','扫描右眼焦点'],['✨','校准星光颜色'],['👓','生成眼镜图纸']], worksheetKind: 'find',
+  },
+  respiratory: {
+    id: 'respiratory', name: '呼吸科', icon: '🫁', color: '#4bb9c7', english: 'AIR BUBBLE STATION', headline: '送空气泡泡', emphasis: '穿过左右肺', intro: '呼吸仪会自动观察空气泡泡的路线，纸上再用宽迷宫和棉球完成亲子游戏。', tile: '青色磁力片', sticker: '空气泡泡领航员', drawPrompt: '画出一朵能送来新鲜空气的云',
+    conditions: ['空气泡泡塞车症','左右肺接力慢慢症','呼吸风车没电症','云朵通道绕远症','泡泡出口排队症','深呼吸按钮打盹症','空气小船摇晃症','胸口气球充电慢症','呼吸节奏走神症','新鲜空气迷路症'],
+    causes: playfulCauses,
+    treatments: [['🌬️','和家长做三次慢慢呼吸'],['🪟','打开想象窗户换新空气'],['☁️','数五朵慢慢飘过的云'],['🫧','画三颗大大的空气泡泡'],['🛋️','在安静基地休息五分钟'],['🤗','收集一个安心拥抱'],['🎵','跟着轻音乐慢慢呼吸'],['🧸','让玩具护士陪着观察'],['🥤','慢慢喝一小杯水'],['⭐','每次舒服一点涂一颗星']],
+    steps: [['☁️','收集新鲜空气'],['🫁','进入左边气球'],['🫁','进入右边气球'],['🫧','送出空气泡泡']], worksheetKind: 'maze',
+  },
+  dermatology: {
+    id: 'dermatology', name: '皮肤科', icon: '🧴', color: '#ef8fac', english: 'SHELL PROTECTION LAB', headline: '检查积木外壳的', emphasis: '彩色保护层', intro: '外壳扫描仪会自动标记想象斑点，孩子在纸上寻找、配对并设计保护补丁。', tile: '桃粉色磁力片', sticker: '外壳保护设计师', drawPrompt: '设计一件有彩色花纹的保护服',
+    conditions: ['彩色保护层缺角症','外壳小斑点旅行症','花纹积木排错队症','保护泡泡变薄症','皮肤盾牌打哈欠症','彩虹贴纸松动症','痒痒精灵跳舞症','外壳颜色躲猫猫症','柔软护盾电量低症','小点点地图迷路症'],
+    causes: playfulCauses,
+    treatments: [['🛡️','画一枚彩色保护盾'],['🧴','贴上想象中的柔软补丁'],['🤗','收集一个安心拥抱'],['🫧','用纸上泡泡轻轻清洁'],['🎨','给保护服设计花纹'],['🛋️','让外壳安静休息'],['👐','请家长观察积木外壳'],['🌙','今晚早点进入修复模式'],['👕','换上想象云朵保护衣'],['⭐','完成一次护理涂一颗星']],
+    steps: [['🔍','扫描彩色斑点'],['🧩','匹配保护花纹'],['🛡️','设计外壳护盾'],['🩹','生成纸上补丁']], worksheetKind: 'match',
+  },
+  ultrasound: {
+    id: 'ultrasound', name: '超声波室', icon: '🔊', color: '#607bd8', english: 'ECHO TREASURE ROOM', headline: '让回声波寻找', emphasis: '身体小宝藏', intro: '回声仪会自动发出一圈圈想象声波，把找到的图形留在纸上继续寻宝。', tile: '靛蓝色磁力片', sticker: '回声寻宝员', drawPrompt: '画一个藏在身体里的回声宝藏',
+    conditions: ['回声宝藏躲猫猫症','声波圆圈打结症','图形小岛迷雾症','回声按钮慢半拍症','身体山洞有回音症','星星影像藏起来症','声波小船绕路症','宝藏地图缺一角症','回声积木排队症','圆圈雷达打哈欠症'],
+    causes: playfulCauses,
+    treatments: [['🔊','在纸上描三圈回声波'],['🔍','找出藏起来的三个图形'],['🖍️','给回声宝藏涂色'],['🤫','安静听一听房间的声音'],['🫶','和家长交换一个寻宝线索'],['🧩','拼一个回声小山洞'],['🎵','哼一声看看回声去哪儿'],['🌀','沿圆圈慢慢画到中心'],['⭐','找到宝藏涂一颗星'],['📖','给宝藏编一个短故事']],
+    steps: [['🔊','发出回声波'],['🌀','穿过身体山洞'],['🔍','标记隐藏图形'],['🗺️','打印寻宝地图']], worksheetKind: 'find',
+  },
+  laboratory: {
+    id: 'laboratory', name: '能量化验室', icon: '🧪', color: '#31a78b', english: 'COLOR SAMPLE LAB', headline: '自动分析', emphasis: '彩色能量样本', intro: '这里没有真实血液，只有红黄蓝想象能量；机器会自动排列颜色和形状。', tile: '薄荷色磁力片', sticker: '能量样本分析师', drawPrompt: '画一支装满彩虹泡泡的能量试管',
+    conditions: ['彩色样本排错队症','红黄蓝能量打结症','试管泡泡太兴奋症','颜色号码迷路症','能量小点分组慢症','样本标签躲猫猫症','彩虹顺序颠倒症','泡泡计数器打盹症','颜色配对晚点症','能量图案缺一块症'],
+    causes: playfulCauses,
+    treatments: [['🟥','寻找一件红色物品'],['🟨','寻找一件黄色物品'],['🟦','寻找一件蓝色物品'],['🧪','给纸试管画满泡泡'],['🔢','数一数五颗能量点'],['🧩','完成一组颜色配对'],['🤗','和家长交换颜色卡'],['🎨','调出一种新颜色'],['⭐','完成分析涂一颗星'],['📋','给样本写一个想象名字']],
+    steps: [['🧪','接收想象样本'],['🌈','读取三种颜色'],['🔢','计算泡泡数量'],['🏷️','打印样本标签']], worksheetKind: 'match',
+  },
+  rehabilitation: {
+    id: 'rehabilitation', name: '康复训练室', icon: '🦿', color: '#65a7b8', english: 'MOVE AGAIN STUDIO', headline: '抽取纸上动作卡', emphasis: '慢慢恢复力量', intro: '网页只自动选择动作主题；真正的模仿、摆姿势和移动乐高都在纸上完成。', tile: '湖蓝色磁力片', sticker: '慢动作训练教练', drawPrompt: '画一个乐高小人最勇敢的动作',
+    conditions: ['动作齿轮慢慢症','平衡积木摇晃症','小脚路线忘记症','手臂伸展打盹症','走路节奏迷路症','超级跳跃休息症','关节按钮充电症','姿势卡片排队症','身体支架慢半拍症','移动能量不足症'],
+    causes: playfulCauses,
+    treatments: [['🐢','让小人用乌龟速度走五步'],['🙆','轻轻展开手臂三次'],['🧍','站稳后安静数到五'],['👣','沿纸上脚印慢慢走'],['🧸','让玩具伙伴一起模仿'],['🛋️','完成一张卡就休息'],['🤗','收集一个加油拥抱'],['🎵','跟着慢音乐摆一摆'],['🧱','搭一座低低的平衡桥'],['⭐','完成一个动作涂一颗星']],
+    steps: [['🃏','自动选择动作卡'],['🦿','检查慢慢移动'],['⚖️','观察平衡能量'],['🖨️','打印训练卡片']], worksheetKind: 'roleplay',
+  },
+  nutrition: {
+    id: 'nutrition', name: '营养工作室', icon: '🥕', color: '#e59b32', english: 'RAINBOW PLATE STUDIO', headline: '自动搭配', emphasis: '彩虹能量餐盘', intro: '营养仪只选择想象食物颜色，孩子在纸上剪贴、分类并给餐盘讲故事。', tile: '蜜橙色磁力片', sticker: '彩虹餐盘设计师', drawPrompt: '画一份来自外星球的快乐早餐',
+    conditions: ['彩虹餐盘少一色症','蔬菜乘客迷路症','早餐车站晚开门症','能量水果排错队症','喝水小河变窄症','餐盘拼图缺一块症','点心红灯等待症','胡萝卜火箭没起飞症','苹果电池充电慢症','食物颜色躲猫猫症'],
+    causes: playfulCauses,
+    treatments: [['🍎','给苹果一个餐盘座位'],['🥕','邀请一种彩色蔬菜'],['🥤','慢慢喝一小杯水'],['🍌','给月亮香蕉画笑脸'],['🌽','寻找一种金色食物'],['🍓','数三颗草莓能量点'],['✂️','和大人剪贴纸上食物'],['🎨','给餐盘补齐彩虹颜色'],['🤗','请家长介绍一种喜欢的食物'],['⭐','完成一份餐盘涂一颗星']],
+    steps: [['🌈','读取需要的颜色'],['🍎','挑选水果乘客'],['🥕','挑选蔬菜乘客'],['🍽️','生成纸上餐盘']], worksheetKind: 'cut',
+  },
+  mood: {
+    id: 'mood', name: '心情加油站', icon: '🌤️', color: '#9a75c9', english: 'FEELING WEATHER STATION', headline: '看看今天的', emphasis: '心情天气', intro: '这里不做真实诊断，只帮助孩子用表情、天气和颜色向家长讲述现在的感觉。', tile: '云朵色磁力片', sticker: '心情天气观察员', drawPrompt: '画出今天心情天空里的云、雨和彩虹',
+    conditions: ['心情乌云停靠症','笑容太阳躲起来症','勇气天气变小雨症','表情颜色说不出症','拥抱电量偏低症','心情风车慢慢症','故事云朵装太满症','安心彩虹晚到症','感觉小鸟不说话症','快乐温度暂时下降症'],
+    causes: playfulCauses,
+    treatments: [['💬','告诉家长一种现在的感觉'],['🤗','收集一个同意后的拥抱'],['🎨','给心情天气涂颜色'],['☁️','画一朵想休息的云'],['🌈','画一道慢慢出现的彩虹'],['📖','和家长讲一个短故事'],['🧸','请玩具朋友安静陪伴'],['🌬️','一起做三次慢慢呼吸'],['😊','从表情卡里选一个朋友'],['⭐','愿意表达就涂一颗勇气星']],
+    steps: [['😊','读取表情天气'],['🌦️','匹配云雨和彩虹'],['🤗','测量陪伴能量'],['📝','生成亲子表达卡']], worksheetKind: 'roleplay',
   },
 };
 
@@ -1157,6 +1159,9 @@ function makeExpansionResult(config: ExpansionConfig, patient: Patient): Departm
     return { icon: treatment[0], text: treatment[1], targetCount: [3, 5, 7][index] };
   });
   const score = 84 + Math.floor(random() * 15);
+  const worksheetTokens = config.id === 'ent'
+    ? [choose(['ear', 'nose', 'throat'] as const, random), ...config.steps.map((item) => item[1])]
+    : config.steps.map((item) => item[1]);
   return {
     id: config.id, name: config.name, icon: config.icon, score, seed,
     summary: condition,
@@ -1168,7 +1173,7 @@ function makeExpansionResult(config: ExpansionConfig, patient: Patient): Departm
       { icon: '⭐', label: '勇敢指数', value: `${score}%` },
     ],
     prescription,
-    worksheet: makeWorksheet(patient, config.id, config.id === 'gastro' ? 'maze' : config.id === 'internal' ? 'color' : 'cut', config.steps.map((item) => item[1])),
+    worksheet: makeWorksheet(patient, config.id, config.worksheetKind, worksheetTokens),
   };
 }
 
@@ -1182,6 +1187,15 @@ const automaticDepartmentCopy: Record<AutomaticDepartmentId, { english: string; 
   surgery: { english: expansionConfigs.surgery.english, headline: '温柔检查', emphasis: '外壳擦伤', intro: '这里没有可怕的手术，只有自动清洁扫描和彩色补丁图纸。', tile: expansionConfigs.surgery.tile, stages: expansionConfigs.surgery.steps.map((item) => item[1]) },
   internal: { english: expansionConfigs.internal.english, headline: '自动读取', emphasis: '身体仪表', intro: '检查仪会自动读取温度、呼吸、睡眠和快乐电量。', tile: expansionConfigs.internal.tile, stages: expansionConfigs.internal.steps.map((item) => item[1]) },
   gastro: { english: expansionConfigs.gastro.english, headline: '自动追踪', emphasis: '食物列车', intro: '扫描仪会自动追踪食物列车经过苹果站、水滴桥和肚肚隧道。', tile: expansionConfigs.gastro.tile, stages: expansionConfigs.gastro.steps.map((item) => item[1]) },
+  ent: { english: expansionConfigs.ent.english, headline: '自动追踪', emphasis: '声音与空气', intro: expansionConfigs.ent.intro, tile: expansionConfigs.ent.tile, stages: expansionConfigs.ent.steps.map((item) => item[1]) },
+  ophthalmology: { english: expansionConfigs.ophthalmology.english, headline: '自动对准', emphasis: '星光焦点', intro: expansionConfigs.ophthalmology.intro, tile: expansionConfigs.ophthalmology.tile, stages: expansionConfigs.ophthalmology.steps.map((item) => item[1]) },
+  respiratory: { english: expansionConfigs.respiratory.english, headline: '自动追踪', emphasis: '空气泡泡', intro: expansionConfigs.respiratory.intro, tile: expansionConfigs.respiratory.tile, stages: expansionConfigs.respiratory.steps.map((item) => item[1]) },
+  dermatology: { english: expansionConfigs.dermatology.english, headline: '自动扫描', emphasis: '外壳保护层', intro: expansionConfigs.dermatology.intro, tile: expansionConfigs.dermatology.tile, stages: expansionConfigs.dermatology.steps.map((item) => item[1]) },
+  ultrasound: { english: expansionConfigs.ultrasound.english, headline: '自动发出', emphasis: '回声寻宝波', intro: expansionConfigs.ultrasound.intro, tile: expansionConfigs.ultrasound.tile, stages: expansionConfigs.ultrasound.steps.map((item) => item[1]) },
+  laboratory: { english: expansionConfigs.laboratory.english, headline: '自动分析', emphasis: '彩色能量样本', intro: expansionConfigs.laboratory.intro, tile: expansionConfigs.laboratory.tile, stages: expansionConfigs.laboratory.steps.map((item) => item[1]) },
+  rehabilitation: { english: expansionConfigs.rehabilitation.english, headline: '自动选择', emphasis: '纸上动作卡', intro: expansionConfigs.rehabilitation.intro, tile: expansionConfigs.rehabilitation.tile, stages: expansionConfigs.rehabilitation.steps.map((item) => item[1]) },
+  nutrition: { english: expansionConfigs.nutrition.english, headline: '自动搭配', emphasis: '彩虹能量餐盘', intro: expansionConfigs.nutrition.intro, tile: expansionConfigs.nutrition.tile, stages: expansionConfigs.nutrition.steps.map((item) => item[1]) },
+  mood: { english: expansionConfigs.mood.english, headline: '自动记录', emphasis: '心情天气', intro: expansionConfigs.mood.intro, tile: expansionConfigs.mood.tile, stages: expansionConfigs.mood.steps.map((item) => item[1]) },
 };
 
 function makeAutomaticResult(id: AutomaticDepartmentId, patient: Patient, previousResults: DepartmentResult[] = []) {
@@ -1204,6 +1218,15 @@ function AutomaticDepartmentScene({ id, progress, result }: { id: AutomaticDepar
     return <div className="pharmacy-counter automatic-scene"><div className="prescription-order"><span>自动生成的颜色处方</span><div>{order.map((name, index) => { const item = medicines.find((medicine) => medicine.name === name)!; return <article key={name} className={index < lit ? 'filled' : ''}><b>{item?.emoji}</b><small>{name}</small></article>; })}</div></div><div className="medicine-shelf passive-medicines">{medicines.map((medicine) => <div key={medicine.name} style={{ '--medicine': medicine.color } as React.CSSProperties}><span>🧪</span><b>{medicine.emoji}</b><small>{medicine.name}</small></div>)}</div></div>;
   }
   const config = expansionConfigs[id];
+  if (id === 'ent') return <div className="special-automatic-scene automatic-scene ent-scan-scene"><div className="sound-wave"><i/><i/><i/><i/><i/></div><div className="ent-portals">{config.steps.slice(0,3).map((item, index) => <span key={item[1]} className={index < lit ? 'lit' : ''}>{item[0]}<b>{item[1]}</b></span>)}</div><div className="sound-train" style={{ left: `${10 + progress * .72}%` }}>🎵</div></div>;
+  if (id === 'ophthalmology') return <div className="special-automatic-scene automatic-scene eye-scan-scene"><div className="focus-eye">👁️<i style={{ transform: `scale(${.55 + progress / 220})` }}/><b>{progress < 100 ? '正在校准焦点' : '星光焦点已对准'}</b></div><div className="eye-symbols">●　▲　★　■</div></div>;
+  if (id === 'respiratory') return <div className="special-automatic-scene automatic-scene lung-scan-scene"><div className="lung-pair"><span>🫁</span>{Array.from({length:8}).map((_, index) => <i key={index} className={index < Math.ceil(progress / 13) ? 'lit' : ''} style={{ left: `${22 + (index % 4) * 18}%`, top: `${72 - Math.floor(index / 4) * 28 - (index % 4) * 6}%` }}/>)}</div><b>空气泡泡 {Math.ceil(progress / 13)} / 8</b></div>;
+  if (id === 'dermatology') return <div className="special-automatic-scene automatic-scene skin-scan-scene"><div className="shell-outline">🧑‍🚀{Array.from({length:6}).map((_, index) => <i key={index} className={index < lit + 2 ? 'found' : ''}>{index % 2 ? '✦' : '●'}</i>)}</div><div className="shell-beam" style={{ top: `${8 + progress * .75}%` }}/></div>;
+  if (id === 'ultrasound') return <div className="special-automatic-scene automatic-scene echo-scan-scene"><div className="echo-radar">🔊{Array.from({length:4}).map((_, index) => <i key={index} className={index < lit ? 'lit' : ''}/>)}</div><span>{progress > 72 ? '⭐ 找到回声宝藏' : '正在寻找隐藏图形…'}</span></div>;
+  if (id === 'laboratory') return <div className="special-automatic-scene automatic-scene sample-scan-scene"><div className="sample-tubes">{['🟥','🟨','🟦','🟩'].map((color, index) => <span key={color} className={index < lit ? 'lit' : ''}>🧪<b>{color}</b><i style={{ height: `${18 + progress * (index + 1) / 9}%` }}/></span>)}</div><b>只分析想象颜色 · 没有真实样本</b></div>;
+  if (id === 'rehabilitation') return <div className="special-automatic-scene automatic-scene rehab-scan-scene"><div className="pose-cards">{['🙆','🧍','👣','🐢'].map((pose, index) => <span key={pose} className={index < lit ? 'lit' : ''}>{pose}<b>{index + 1}</b></span>)}</div><p>动作卡只在纸上和乐高小人一起完成</p></div>;
+  if (id === 'nutrition') return <div className="special-automatic-scene automatic-scene nutrition-scan-scene"><div className="rainbow-plate"><span>🍽️</span>{['🍎','🥕','🍌','🥤'].map((food, index) => <i key={food} className={index < lit ? 'lit' : ''}>{food}</i>)}</div><b>正在搭配彩虹能量餐盘</b></div>;
+  if (id === 'mood') return <div className="special-automatic-scene automatic-scene mood-scan-scene"><div className="weather-orbit">{['☁️','🌧️','🌤️','🌈'].map((weather, index) => <span key={weather} className={index < lit ? 'lit' : ''}>{weather}</span>)}</div><h3>{progress < 100 ? '心情天气正在慢慢变亮' : '每一种感觉都可以被听见'}</h3><p>这里不评分，也不判断对错</p></div>;
   return <div className={`expansion-stage ${id}-stage automatic-scene`}><div className="expansion-scene" aria-label={`${config.name}自动检查动画`}>
     {id === 'orthopedics' && <div className="bone-blueprint"><i>💀</i>{config.steps.map((item, index) => <span key={item[1]} className={index < lit ? 'lit' : ''}>{item[0]}</span>)}</div>}
     {id === 'surgery' && <div className="repair-patient"><span>🧑‍🚀</span><div>{config.steps.slice(0, lit).map((item) => <i key={item[1]}>{item[0]}</i>)}</div></div>}
@@ -1356,7 +1379,20 @@ function DepartmentWorksheet({ journey, departmentId }: { journey: JourneyState;
     if (departmentId === 'orthopedics') return <div className="worksheet-activity bone-paper-activity"><b>✂ 请大人帮忙剪下零件，孩子把骨骼小人拼回蓝图</b><div className="paper-bone-board"><div className="bone-target"><span>头</span><span>手臂</span><span>身体</span><span>腿</span><span>脚</span></div><div className="bone-pieces">{['🙂 头','💪 手臂','🦴 身体','🦵 腿','🦶 脚'].map((item) => <span key={item}>{item}</span>)}</div></div><div className="paper-design-line">我的骨骼盔甲名字：____________________</div></div>;
     if (departmentId === 'surgery') return <div className="worksheet-activity surgery-paper-activity"><b>圈出需要维修的位置，再设计、剪下并贴上勇敢补丁</b><div className="paper-repair-zone"><div className="repair-outline">🧑‍🚀<i>①</i><i>②</i><i>③</i><small>给三个小擦伤画圈</small></div><div className="patch-workshop"><span>🩹</span><span>⭐</span><span>🌈</span><span>🟨</span><b>✂ 请大人帮忙剪下补丁</b></div></div><div className="paper-design-line">我设计的创可贴叫：____________________</div></div>;
     if (departmentId === 'internal') return <div className="worksheet-activity internal-paper-activity"><b>听家长读问题，再把四个仪表涂到你觉得合适的位置</b><div className="paper-gauges">{[['🌡️','身体温度'],['🌬️','呼吸泡泡'],['🌙','睡眠电量'],['😊','快乐能量']].map(([icon,label]) => <div key={label}><span>{icon}</span><b>{label}</b><div>{Array.from({length:5}).map((_, index) => <i key={index}>{index + 1}</i>)}</div><small>少一点 ←　→ 很充足</small></div>)}</div><div className="paper-design-line">家长观察：________________________________</div></div>;
-    return <div className="worksheet-activity gastro-paper-activity"><b>帮助食物列车沿虚线经过每一站，再画一条自己的肚肚路线</b><div className="paper-tummy-map"><span>🚂</span><i/><span>🍎</span><i/><span>🥤</span><i/><span>🍪</span><i/><span>🫧</span><i/><span>🏁</span></div><div className="paper-maze-space"><span>起点 🚂</span><i/><i/><i/><i/><b>🏁 终点</b></div><div className="paper-cut-food"><b>✂ 大人帮忙剪下乘客：</b><span>🍎</span><span>🥤</span><span>🥕</span><span>🍪</span></div></div>;
+    if (departmentId === 'gastro') return <div className="worksheet-activity gastro-paper-activity"><b>帮助食物列车沿虚线经过每一站，再画一条自己的肚肚路线</b><div className="paper-tummy-map"><span>🚂</span><i/><span>🍎</span><i/><span>🥤</span><i/><span>🍪</span><i/><span>🫧</span><i/><span>🏁</span></div><div className="paper-maze-space"><span>起点 🚂</span><i/><i/><i/><i/><b>🏁 终点</b></div><div className="paper-cut-food"><b>✂ 大人帮忙剪下乘客：</b><span>🍎</span><span>🥤</span><span>🥕</span><span>🍪</span></div></div>;
+    if (departmentId === 'ent') {
+      const mode = tokens[0] || 'ear';
+      const modeCopy = mode === 'nose' ? ['🤧','空气泡泡','灰尘怪'] : mode === 'throat' ? ['🗣️','嗓音列车','沙沙隧道'] : ['👂','声音小火车','回声云朵'];
+      return <div className="worksheet-activity ent-paper-activity"><b>{modeCopy[0]} 本次是{modeCopy[1]}路线：用粗线走迷宫，绕开{modeCopy[2]}</b><div className="wide-paper-maze"><span>起点 {modeCopy[0]}</span><i/><i/><i/><i/><i/><b>🎵 回声站</b><em>🏁</em></div><div className="paper-sound-tools"><b>✂ 大人帮忙剪下纸上检查工具</b><span>🔍<small>声音镜</small></span><span>🎵<small>音符卡</small></span><span>🌬️<small>空气卡</small></span><span>👩‍⚕️<small>医生牌</small></span></div></div>;
+    }
+    if (departmentId === 'ophthalmology') return <div className="worksheet-activity eye-paper-activity"><b>家长指一个图形，孩子用手指沿虚线找到相同伙伴，不需要读文字</b><div className="paper-eye-chart">{['●','▲','★','■','♥','☂','◆','☀'].map((shape, index) => <span key={index} style={{ fontSize: `${30 - index * 2}pt` }}>{shape}</span>)}</div><div className="paper-follow-lines"><span>👁️</span><i/><span>★</span><i/><span>▲</span><i/><span>●</span></div><div className="paper-glasses-design"><b>给星光眼镜画花纹</b><span/><span/><i/></div></div>;
+    if (departmentId === 'respiratory') return <div className="worksheet-activity breathing-paper-activity"><b>把棉球放在起点，用嘴轻轻吹过宽赛道；小物件必须由大人看护</b><div className="airflow-race"><span>☁️ 起点</span><i/><i/><i/><i/><b>🫁 空气站</b><em>🏁</em></div><div className="paper-breath-bubbles">{Array.from({length:10}).map((_, index) => <span key={index}>○<small>{index + 1}</small></span>)}</div><div className="paper-design-line">我画的新鲜空气云：________________________________</div></div>;
+    if (departmentId === 'dermatology') return <div className="worksheet-activity skin-paper-activity"><b>先找出两件保护服的 5 个不同，再剪下喜欢的保护补丁</b><div className="skin-difference"><div>🧑‍🚀<i>●</i><i>★</i><i>▲</i></div><div>🧑‍🚀<i>■</i><i>★</i><i>◆</i></div></div><div className="skin-patch-cuts"><b>✂ 大人帮忙剪</b>{['🩹','⭐','🌈','🛡️','♥'].map((item) => <span key={item}>{item}</span>)}</div><div className="paper-design-line">我的保护服名字：________________________________</div></div>;
+    if (departmentId === 'ultrasound') return <div className="worksheet-activity echo-paper-activity"><b>从扬声器开始描回声圆圈，再找出藏在图里的 5 个小宝藏</b><div className="paper-echo-radar"><span>🔊</span><i/><i/><i/><i/><b>⭐</b><em>◆</em><strong>♥</strong><small>●</small></div><div className="echo-treasure-list">找到后打勾：　□ 星星　□ 爱心　□ 圆点　□ 菱形　□ 自己画的宝藏</div><div className="paper-design-line">回声宝藏故事：__________________________________</div></div>;
+    if (departmentId === 'laboratory') return <div className="worksheet-activity lab-paper-activity"><b>这里没有真实血液。给想象试管涂色，再把相同图形连起来</b><div className="paper-test-tubes">{['●','▲','★','■','♥','◆'].map((shape, index) => <span key={shape}>🧪<b>{shape}</b><small>{index + 1}</small></span>)}</div><div className="sample-match-board"><div>●　▲　★　■　♥　◆</div><div>◆　♥　■　★　▲　●</div><i/><i/><i/></div><div className="paper-design-line">样本的想象名字：________________________________</div></div>;
+    if (departmentId === 'rehabilitation') return <div className="worksheet-activity rehab-paper-activity"><b>✂ 大人剪下动作卡，孩子抽一张，用乐高小人摆姿势；累了马上休息</b><div className="paper-pose-cards">{[['🙆','张开手臂'],['🧍','站稳数五下'],['👣','慢慢走五步'],['🐢','乌龟速度'],['🧱','过低矮小桥'],['🛋️','休息卡']].map(([icon,label]) => <span key={label}>{icon}<b>{label}</b><small>完成 ☆</small></span>)}</div><div className="rehab-path"><b>把乐高小人沿脚印移动</b><span>👣　·　👣　·　👣　·　👣　·　🏁</span></div></div>;
+    if (departmentId === 'nutrition') return <div className="worksheet-activity nutrition-paper-activity"><b>✂ 大人剪下食物，孩子按颜色贴进彩虹餐盘；这不是现实饮食处方</b><div className="paper-rainbow-plate"><span>红色区</span><span>黄色区</span><span>绿色区</span><span>蓝色区</span><b>我的彩虹能量餐</b></div><div className="paper-food-cuts">{['🍎','🍓','🍌','🌽','🥕','🥦','🥤','🫐'].map((food) => <span key={food}>{food}</span>)}</div><div className="paper-design-line">这份能量餐叫：__________________________________</div></div>;
+    return <div className="worksheet-activity mood-paper-activity"><b>选一张天气卡告诉家长今天的感觉；没有正确答案，也不会影响出院</b><div className="mood-weather-cards">{[['☀️','亮亮的'],['☁️','想安静'],['🌧️','有点难过'],['⛈️','有点生气'],['🌈','正在变好'],['🌙','想休息']].map(([icon,label]) => <span key={label}>{icon}<b>{label}</b><small>我选这个 ○</small></span>)}</div><div className="mood-story-space"><b>把乐高小人放在这里，和家长讲一个心情天气故事</b><span>🧑‍🚀</span><i/><i/><i/></div></div>;
   })();
 
   const steps: Record<DepartmentId, Array<[string, string]>> = {
@@ -1368,6 +1404,15 @@ function DepartmentWorksheet({ journey, departmentId }: { journey: JourneyState;
     surgery: [['⭕','圈出擦伤'],['🎨','设计勇敢补丁'],['✂️','大人帮忙剪贴']],
     internal: [['👂','听家长读问题'],['🖍️','给仪表涂格子'],['✏️','留下观察记录']],
     gastro: [['✏️','描食物路线'],['🧩','走肚肚迷宫'],['✂️','剪下食物乘客']],
+    ent: [['🎵','走声音宽迷宫'],['⭕','绕开灰尘云朵'],['✂️','剪纸检查工具']],
+    ophthalmology: [['👀','跟随图形路线'],['🔍','找相同和不同'],['🎨','设计星光眼镜']],
+    respiratory: [['🌬️','吹棉球走赛道'],['🫧','描十颗空气泡'],['🎨','画新鲜空气云']],
+    dermatology: [['🔍','找五个不同'],['🛡️','设计保护外壳'],['✂️','剪下彩色补丁']],
+    ultrasound: [['🌀','描一圈回声波'],['🔍','寻找五个宝藏'],['✏️','编一个寻宝故事']],
+    laboratory: [['🖍️','给想象试管涂色'],['〰️','连接相同图形'],['✏️','给样本起名字']],
+    rehabilitation: [['✂️','大人剪动作卡'],['🦿','让小人摆姿势'],['⭐','完成后涂星星']],
+    nutrition: [['✂️','大人剪下食物'],['🌈','按颜色摆餐盘'],['✏️','给能量餐起名']],
+    mood: [['🌦️','选一张天气卡'],['💬','和家长讲感觉'],['🎨','画自己的心情天']],
   };
 
   return <section className={`print-page department-worksheet-paper worksheet-${departmentId}`}>
@@ -1398,7 +1443,7 @@ function BuildingPosterPaper({ journey, part }: { journey: JourneyState; part: '
   return <section className={`print-page building-poster-paper ${part}`}>
     <PaperHeader icon={part === 'top' ? '🚁' : '🚑'} title={part === 'top' ? '可放小人的医院大楼' : '医院大楼 · 欢迎大厅'} subtitle={part === 'top' ? '第 1 张：贴在第 2 张上方' : '第 2 张：与第 1 张沿虚线拼接'} patient={journey.patient} page="双页游戏垫"/>
     {part === 'bottom' && <div className="poster-join-line">✂ 拼接线：把第 1 张纸贴在这里 · ALIGN HERE</div>}
-    <div className="paper-building">{floors.map((floor) => <div className="paper-floor" key={floor.floor}><strong>{floor.floor}F<small>{floor.name}</small></strong><div className="paper-room" style={{ '--paper-room': floor.rooms[0].color } as React.CSSProperties}><span>{floor.rooms[0].icon}</span><b>{floor.rooms[0].name}</b><i>{floor.rooms[0].departmentId && visited.has(floor.rooms[0].departmentId) ? '✓ 去过啦' : '盖章 ○'}</i></div><div className="paper-lift"><b>{floor.floor}</b><span>把小人<br/>放这里</span><i>⇅</i></div><div className="paper-room" style={{ '--paper-room': floor.rooms[1].color } as React.CSSProperties}><span>{floor.rooms[1].icon}</span><b>{floor.rooms[1].name}</b><i>{floor.rooms[1].departmentId && visited.has(floor.rooms[1].departmentId) ? '✓ 去过啦' : '盖章 ○'}</i></div></div>)}</div>
+    <div className="paper-building">{floors.map((floor) => <div className="paper-floor" key={floor.floor}><strong>{floor.floor}F<small>{floor.name}</small></strong><div className="paper-floor-rooms">{floor.rooms.map((room) => <div className="paper-room" key={room.route} style={{ '--paper-room': room.color } as React.CSSProperties}><span>{room.icon}</span><b>{room.name}</b><i>{room.departmentId && visited.has(room.departmentId) ? '✓ 去过啦' : '盖章 ○'}</i></div>)}</div><div className="paper-lift"><b>{floor.floor}</b><span>把小人<br/>放这里</span><i>⇅</i></div></div>)}</div>
     {part === 'top' && <div className="poster-join-line">✂ 拼接线：把第 2 张纸接在这里 · ALIGN HERE</div>}
     {part === 'bottom' && <div className="paper-cutouts"><b>纸上小道具 · 可以涂色后剪下</b><span>🎫 电梯卡</span><span>👩‍⚕️ 医生牌</span><span>🚑 救护车</span><span>⭐ 勇敢星</span></div>}
     <footer className="paper-footer">可以直接把乐高小人平放在纸上乘电梯。需要剪纸时请让大人帮忙。</footer>
@@ -1410,7 +1455,7 @@ function PrintCenter({ journey, onBack, initialPack = 'today' }: { journey: Jour
   const route = journey.plannedRoute?.length ? journey.plannedRoute : buildTreatmentRoute(journey.patient.symptoms);
   const packs: Array<{ id: PrintPack; icon: string; title: string; description: string; pages: number }> = [
     { id: 'today', icon: '🎒', title: '今日路线完整包', description: '路线、途经科室和处方，按需生成', pages: route.length + 2 },
-    { id: 'departments', icon: '🩺', title: '全科操作纸合集', description: '8 个科室各一张，方便提前备课', pages: departmentCards.length },
+    { id: 'departments', icon: '🩺', title: '全院操作纸合集', description: `${departmentCards.length} 个科室与辅助房间各一张`, pages: departmentCards.length },
     { id: 'quick', icon: '📝', title: '一页就诊单', description: '路线、检查结果和画画区', pages: 1 },
     { id: 'prescription', icon: '⭐', title: '处方打卡表', description: '涂星星记录执行次数', pages: 1 },
     { id: 'followup', icon: '☎️', title: '7 天回访记录', description: '孩子圈画，家长录入病历', pages: 1 },
@@ -1433,7 +1478,7 @@ function PrintCenter({ journey, onBack, initialPack = 'today' }: { journey: Jour
     <section className="print-center-screen">
       <div className="print-center-hero"><div><div className="eyebrow"><Printer size={17}/> PAPER PLAY LAB</div><h1>把积木医院<br/><em>带到纸上玩</em></h1><p>选择一份打印包，给小朋友留下画画、打卡、盖章和移动乐高小人的空间。</p></div><div className="printer-character">🖨️<span>纸张准备好啦！</span></div></div>
       <div className="print-pack-grid">{packs.map((item) => <button key={item.id} className={pack === item.id ? 'active' : ''} onClick={() => setPack(item.id)}><span>{item.icon}</span><div><small>{item.pages} 张 A4</small><h2>{item.title}</h2><p>{item.description}</p></div><i>{pack === item.id ? '✓' : '○'}</i></button>)}</div>
-      <div className="department-print-heading"><span>🩺 单科操作纸</span><p>每个科室严格 1 张 A4，可以在检查结果页直接打开。</p></div>
+      <div className="department-print-heading"><span>🩺 单房间操作纸</span><p>正式科室和辅助房间各 1 张 A4，也可以从检查结果直接打开。</p></div>
       <div className="department-print-grid">{departmentPacks.map((item) => <button key={item.id} className={pack === item.id ? 'active' : ''} onClick={() => setPack(item.id)}><span>{item.icon}</span><div><small>1 张 A4</small><b>{item.title}</b><p>{item.description}</p></div><i>{pack === item.id ? '✓' : '○'}</i></button>)}</div>
       <div className="print-launch-bar"><div><b>{current.icon} {current.title}</b><span>将打印 {current.pages} 页 · 建议开启“背景图形”</span></div><button onClick={() => window.print()}><Printer size={20}/>开始打印 {current.pages} 页</button></div>
       <div className="print-preview-label"><span>页面预览</span><p>下面显示实际纸张内容；打印时顶部控制区会自动隐藏。</p></div>
@@ -1626,13 +1671,7 @@ function HospitalApp() {
   if (route === 'print') return <PrintCenter journey={journey} onBack={() => setRoute('lobby')}/>;
   if (route.startsWith('print-')) return <PrintCenter journey={journey} initialPack={route.slice(6) as PrintPack} onBack={() => setRoute('lobby')}/>;
   if (route === 'xray') return <XRayDepartment patient={journey.patient} onBack={() => setRoute('lobby')} onComplete={completeDepartment} onPrintWorksheet={printDepartmentResult}/>;
-  if (route === 'orthopedics') return <ExpansionDepartment id="orthopedics" patient={journey.patient} onBack={() => setRoute('lobby')} onComplete={completeDepartment} onPrint={printDepartmentResult}/>;
-  if (route === 'internal') return <ExpansionDepartment id="internal" patient={journey.patient} onBack={() => setRoute('lobby')} onComplete={completeDepartment} onPrint={printDepartmentResult}/>;
-  if (route === 'heart') return <HeartDepartment patient={journey.patient} onBack={() => setRoute('lobby')} onComplete={completeDepartment} onPrint={printDepartmentResult}/>;
-  if (route === 'gastro') return <ExpansionDepartment id="gastro" patient={journey.patient} onBack={() => setRoute('lobby')} onComplete={completeDepartment} onPrint={printDepartmentResult}/>;
-  if (route === 'surgery') return <ExpansionDepartment id="surgery" patient={journey.patient} onBack={() => setRoute('lobby')} onComplete={completeDepartment} onPrint={printDepartmentResult}/>;
-  if (route === 'dental') return <DentalDepartment patient={journey.patient} onBack={() => setRoute('lobby')} onComplete={completeDepartment} onPrint={printDepartmentResult}/>;
-  if (route === 'pharmacy') return <PharmacyDepartment patient={journey.patient} previousResults={journey.results} onBack={() => setRoute('lobby')} onComplete={completeDepartment} onPrint={printDepartmentResult}/>;
+  if (isDepartmentId(route)) return <AutomaticDepartmentCheck id={route as AutomaticDepartmentId} patient={journey.patient} previousResults={journey.results} onBack={() => setRoute('lobby')} onComplete={completeDepartment} onPrint={printDepartmentResult}/>;
   if (route === 'discharge') return <DischargeCenter journey={journey} onBack={() => setRoute('lobby')} onArchive={archiveJourney} onNewVisit={newVisit} onSwitch={() => setRoute('patients')} archiving={archiving}/>;
   return <HospitalLobby journey={journey} history={history} onRoute={setRoute} onSwitch={() => setRoute('patients')}/>;
 }
