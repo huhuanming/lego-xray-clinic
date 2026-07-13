@@ -27,8 +27,8 @@ import { clinicApi, type ApiPatient, type FollowUpRecord, type HistoryResponse }
 import { preparePatientPhoto } from './photo';
 
 type BodyPart = '全身' | '头部' | '胸部' | '肚子' | '腿部';
-type Symptom = '没精神' | '肚子痛' | '走路咔嗒响' | '头晕晕' | '笑不出来';
-type DepartmentId = 'xray' | 'heart' | 'dental' | 'pharmacy';
+type Symptom = '没精神' | '肚子痛' | '走路咔嗒响' | '头晕晕' | '笑不出来' | '骨头松松的' | '外壳擦伤' | '肚肚咕噜' | '身体热热的';
+type DepartmentId = 'xray' | 'orthopedics' | 'internal' | 'heart' | 'gastro' | 'surgery' | 'dental' | 'pharmacy';
 
 type Patient = {
   id: string;
@@ -51,6 +51,11 @@ type DepartmentResult = {
   summary: string;
   sticker: string;
   detail: string;
+  diagnosisEmoji?: string;
+  findings?: Array<{ icon: string; label: string; value: string }>;
+  prescription?: Array<{ icon: string; text: string; targetCount: number }>;
+  drawPrompt?: string;
+  seed?: number;
 };
 
 type JourneyState = {
@@ -59,6 +64,7 @@ type JourneyState = {
   results: DepartmentResult[];
   journeyToken: string;
   startedAt: string;
+  plannedRoute?: DepartmentId[];
   archivedVisitId?: string;
 };
 
@@ -79,7 +85,7 @@ type Report = {
 };
 
 const bodyParts: BodyPart[] = ['全身', '头部', '胸部', '肚子', '腿部'];
-const symptoms: Symptom[] = ['没精神', '肚子痛', '走路咔嗒响', '头晕晕', '笑不出来'];
+const symptoms: Symptom[] = ['没精神', '肚子痛', '走路咔嗒响', '头晕晕', '笑不出来', '骨头松松的', '外壳擦伤', '肚肚咕噜', '身体热热的'];
 
 const bodyPartIcons: Record<BodyPart, string> = {
   全身: '🧍',
@@ -95,6 +101,10 @@ const symptomIcons: Record<Symptom, string> = {
   走路咔嗒响: '🦿',
   头晕晕: '😵‍💫',
   笑不出来: '☹️',
+  骨头松松的: '🦴',
+  外壳擦伤: '🩹',
+  肚肚咕噜: '🫧',
+  身体热热的: '🌡️',
 };
 
 function patientFromApi(patient: ApiPatient, symptoms: Symptom[] = []): Patient {
@@ -442,6 +452,10 @@ function XRayDepartment({
       summary: report.diagnosis,
       detail: report.summary,
       sticker: report.sticker,
+      diagnosisEmoji: report.diagnosisEmoji,
+      findings: report.findings.slice(0, 3).map((item) => ({ icon: item.icon, label: item.title, value: item.value })),
+      prescription: report.prescription.slice(0, 3).map((item, index) => ({ icon: item.icon, text: item.text, targetCount: [3, 5, 7][index] })),
+      drawPrompt: '画出你在 X 光片里看到的超级积木骨架',
     }, { ...patient, name: name.trim() || patient.name, age: age || patient.age, symptoms: selectedSymptoms });
   };
 
@@ -585,10 +599,12 @@ function speak(text: string) {
 }
 
 function HospitalHeader({ room, color = '#23d9d0', onBack }: { room: string; color?: string; onBack?: () => void }) {
-  const floor = room.includes('出院') || room.includes('回访') ? 4
-    : room.includes('牙科') || room.includes('药房') ? 3
-      : room.includes('X 光') || room.includes('心脏') ? 2
-        : room.includes('候诊') ? 0 : 1;
+  const floor = room.includes('出院') || room.includes('回访') ? 6
+    : room.includes('牙科') || room.includes('药房') ? 5
+      : room.includes('外科') || room.includes('肠胃') ? 4
+        : room.includes('内科') || room.includes('心脏') ? 3
+          : room.includes('X 光') || room.includes('骨科') ? 2
+            : room.includes('候诊') ? 0 : 1;
   return (
     <header className="topbar hospital-topbar" style={{ '--room-color': color } as React.CSSProperties}>
       {onBack && <button className="topbar-back" onClick={onBack}><Home size={18}/><span>回医院大楼</span></button>}
@@ -596,7 +612,7 @@ function HospitalHeader({ room, color = '#23d9d0', onBack }: { room: string; col
       <div className="brand-copy"><strong>咔嗒咔嗒积木医院</strong><span>MAGNETIC TILE CHILDREN'S CLINIC</span></div>
       <div className="system-status"><i/> 全院系统在线</div>
       <div className="mini-building" aria-label={`当前位置：${floor ? `${floor}楼` : '候诊区'}`}>
-        {[4, 3, 2, 1].map((level) => <i key={level} className={level === floor ? 'active' : ''}>{level}</i>)}
+        {[6, 5, 4, 3, 2, 1].map((level) => <i key={level} className={level === floor ? 'active' : ''}>{level}</i>)}
       </div>
       <div className="room-label"><small>{floor ? `${floor}F · 当前楼层` : '入口 · 候诊区'}</small><b>{room.replace(/ · \d+$/, '')}</b></div>
     </header>
@@ -703,10 +719,25 @@ function FollowUpCenter({ patient, history, onBack, onComplete }: { patient: Pat
 
 const departmentCards: Array<{ id: DepartmentId; icon: string; name: string; subtitle: string; color: string; tile: string; description: string }> = [
   { id: 'xray', icon: '🩻', name: 'X 光室', subtitle: '骨骼扫描', color: '#24cfc6', tile: '蓝色磁力片', description: '看看积木骨架和能量核心' },
+  { id: 'orthopedics', icon: '🦴', name: '骨科', subtitle: '骨骼工程', color: '#45a9df', tile: '浅蓝磁力片', description: '把骨骼积木放回正确位置' },
+  { id: 'internal', icon: '🩺', name: '能量内科', subtitle: '身体仪表', color: '#ef8b52', tile: '橙色磁力片', description: '检查温度、睡眠和呼吸泡泡' },
   { id: 'heart', icon: '💓', name: '心脏科', subtitle: '心跳检查', color: '#ff6a5b', tile: '红色磁力片', description: '跟着咚咚节奏点亮勇气核心' },
+  { id: 'gastro', icon: '🫃', name: '肠胃科', subtitle: '肚肚列车', color: '#9a75d6', tile: '紫色磁力片', description: '帮食物列车通过肚肚迷宫' },
+  { id: 'surgery', icon: '🩹', name: '积木外科', subtitle: '外壳维修', color: '#eb6687', tile: '粉色磁力片', description: '清洁、贴补丁、包好创可贴' },
   { id: 'dental', icon: '🦷', name: '牙科', subtitle: '糖果虫清理', color: '#f5b82e', tile: '黄色磁力片', description: '找出藏在牙齿里的糖果虫' },
   { id: 'pharmacy', icon: '💊', name: '彩虹药房', subtitle: '能量配药', color: '#58b96a', tile: '绿色磁力片', description: '按处方装好三种彩色能量' },
 ];
+
+function buildTreatmentRoute(selectedSymptoms: Symptom[]): DepartmentId[] {
+  const route: DepartmentId[] = [];
+  const add = (...ids: DepartmentId[]) => ids.forEach((id) => { if (!route.includes(id)) route.push(id); });
+  if (selectedSymptoms.some((item) => ['走路咔嗒响', '骨头松松的'].includes(item))) add('xray', 'orthopedics');
+  if (selectedSymptoms.includes('外壳擦伤')) add('surgery', 'orthopedics');
+  if (selectedSymptoms.some((item) => ['肚子痛', '肚肚咕噜'].includes(item))) add('gastro', 'internal');
+  if (selectedSymptoms.some((item) => ['没精神', '头晕晕', '笑不出来', '身体热热的'].includes(item))) add('internal', 'heart');
+  if (!route.length) add('xray');
+  return [...route.slice(0, 4), 'pharmacy'];
+}
 
 type BuildingRoom = {
   route: string;
@@ -718,17 +749,25 @@ type BuildingRoom = {
 };
 
 const buildingFloors: Array<{ floor: number; name: string; rooms: [BuildingRoom, BuildingRoom] }> = [
-  { floor: 4, name: '康复屋顶', rooms: [
+  { floor: 6, name: '康复屋顶', rooms: [
     { route: 'discharge', icon: '🎖️', name: '出院中心', childHint: '领勇敢证书', color: '#9b6bd1' },
     { route: 'followups', icon: '☎️', name: '回访中心', childHint: '接医生电话', color: '#ef765b' },
   ] },
-  { floor: 3, name: '彩虹护理层', rooms: [
+  { floor: 5, name: '彩虹护理层', rooms: [
     { route: 'dental', icon: '🦷', name: '牙科', childHint: '赶走糖果虫', color: '#f5b82e', departmentId: 'dental' },
     { route: 'pharmacy', icon: '💊', name: '彩虹药房', childHint: '配能量药', color: '#58b96a', departmentId: 'pharmacy' },
   ] },
-  { floor: 2, name: '身体检查层', rooms: [
-    { route: 'xray', icon: '🩻', name: 'X 光室', childHint: '看看积木骨架', color: '#24cfc6', departmentId: 'xray' },
+  { floor: 4, name: '积木修理层', rooms: [
+    { route: 'gastro', icon: '🫃', name: '肠胃科', childHint: '开动肚肚列车', color: '#9a75d6', departmentId: 'gastro' },
+    { route: 'surgery', icon: '🩹', name: '积木外科', childHint: '修好小小擦伤', color: '#eb6687', departmentId: 'surgery' },
+  ] },
+  { floor: 3, name: '能量检查层', rooms: [
+    { route: 'internal', icon: '🩺', name: '能量内科', childHint: '调好身体仪表', color: '#ef8b52', departmentId: 'internal' },
     { route: 'heart', icon: '💓', name: '心脏科', childHint: '听咚咚心跳', color: '#ff6a5b', departmentId: 'heart' },
+  ] },
+  { floor: 2, name: '骨骼检查层', rooms: [
+    { route: 'xray', icon: '🩻', name: 'X 光室', childHint: '看看积木骨架', color: '#24cfc6', departmentId: 'xray' },
+    { route: 'orthopedics', icon: '🦴', name: '骨科', childHint: '拼好骨骼积木', color: '#45a9df', departmentId: 'orthopedics' },
   ] },
   { floor: 1, name: '欢迎大厅', rooms: [
     { route: 'triage', icon: '👩‍⚕️', name: '挂号台', childHint: '告诉护士哪里痛', color: '#ffca28' },
@@ -740,16 +779,17 @@ function HospitalBuilding({ journey, history, onRoute }: { journey: JourneyState
   const visited = new Set(journey.results.map((result) => result.id));
   const pendingFollowUps = history.followUps.filter((item) => item.status === 'pending');
   const dueFollowUps = pendingFollowUps.filter((item) => new Date(item.dueAt) <= new Date());
-  const nextDepartment = departmentCards.find((department) => !visited.has(department.id));
+  const plannedRoute = journey.plannedRoute?.length ? journey.plannedRoute : buildTreatmentRoute(journey.patient.symptoms);
+  const nextDepartment = plannedRoute.find((department) => !visited.has(department));
   const nextRoute = journey.archivedVisitId
     ? (dueFollowUps.length ? 'followups' : 'records')
-    : nextDepartment?.id || 'discharge';
+    : nextDepartment || 'discharge';
   const nextRoom = buildingFloors.flatMap((item) => item.rooms).find((room) => room.route === nextRoute)!;
   const nextFloor = buildingFloors.find((item) => item.rooms.some((room) => room.route === nextRoute))?.floor || 1;
 
   const roomState = (room: BuildingRoom) => {
     const done = room.departmentId ? visited.has(room.departmentId) : room.route === 'triage' ? journey.registered : room.route === 'discharge' ? Boolean(journey.archivedVisitId) : false;
-    const locked = room.route === 'pharmacy' && !visited.has('xray') && !visited.has('heart') && !visited.has('dental');
+    const locked = room.route === 'pharmacy' && !journey.results.some((item) => item.id !== 'pharmacy');
     const badge = room.route === 'followups' && dueFollowUps.length ? `☎ ${dueFollowUps.length} 个电话` : done ? '✓ 完成' : room.route === nextRoute ? '下一站' : locked ? '🔒 先检查' : '';
     return { done, locked, badge };
   };
@@ -757,7 +797,7 @@ function HospitalBuilding({ journey, history, onRoute }: { journey: JourneyState
   return (
     <section className="building-section">
       <div className="next-stop-card" style={{ '--next-color': nextRoom.color } as React.CSSProperties}>
-        <div className="next-stop-number">{journey.results.length + 1}</div>
+        <div className="next-stop-number">{Math.min(plannedRoute.length + 1, journey.results.filter((item) => plannedRoute.includes(item.id)).length + 1)}</div>
         <span className="next-stop-icon">{nextRoom.icon}</span>
         <div><small>方块护士说 · NEXT STOP</small><h2>下一站：{nextFloor} 楼 {nextRoom.name}</h2><p>{nextRoom.childHint}，跟着亮起来的电梯走！</p></div>
         <button onClick={() => onRoute(nextRoute)}>乘电梯去 {nextFloor} 楼 <ChevronRight size={20}/></button>
@@ -768,7 +808,7 @@ function HospitalBuilding({ journey, history, onRoute }: { journey: JourneyState
         <p>亮灯的是下一站 · 打勾的是去过的房间</p>
       </div>
 
-      <div className="hospital-building" aria-label="四层积木医院地图">
+      <div className="hospital-building" aria-label="六层积木医院地图">
         <div className="building-roof"><span>H</span><b>🚁</b><i/><i/><i/></div>
         {buildingFloors.map((level) => (
           <div key={level.floor} className={`building-floor floor-${level.floor} ${level.floor === nextFloor ? 'is-current' : ''}`}>
@@ -798,7 +838,7 @@ function HospitalBuilding({ journey, history, onRoute }: { journey: JourneyState
             })}
           </div>
         ))}
-        <div className="building-ground"><span>🚑</span><i/><i/><i/><b>欢迎光临</b><i/><i/><i/><span>🌳</span></div>
+        <div className="building-ground"><span>🚑</span><i/><i/><button onClick={() => onRoute('print')}><Printer size={16}/>纸上游戏打印机</button><i/><i/><span>🌳</span></div>
       </div>
       <div className="building-legend">
         <span>✨ 下一站会发光</span><span>✅ 做完就盖章</span><span>🛗 电梯带你上楼</span><span>👆 也可以自由探索</span>
@@ -809,6 +849,7 @@ function HospitalBuilding({ journey, history, onRoute }: { journey: JourneyState
 
 function HospitalLobby({ journey, history, onRoute, onSwitch }: { journey: JourneyState; history: HistoryResponse; onRoute: (route: string) => void; onSwitch: () => void }) {
   const visited = new Set(journey.results.map((result) => result.id));
+  const plannedRoute = journey.plannedRoute?.length ? journey.plannedRoute : buildTreatmentRoute(journey.patient.symptoms);
   return (
     <main className="app-shell hospital-shell">
       <HospitalHeader room="医院大厅 · 01"/>
@@ -830,9 +871,9 @@ function HospitalLobby({ journey, history, onRoute, onSwitch }: { journey: Journ
           <h2>{journey.registered ? journey.patient.name : '等待挂号'}</h2>
           <p>{journey.registered ? `${journey.patient.age} 岁 · ${journey.patient.symptoms.map((s) => symptomIcons[s]).join(' ') || '😊'}` : '先填写小患者资料'}</p>
           <div className="passport-stamps">
-            {departmentCards.map((dept) => <span key={dept.id} className={visited.has(dept.id) ? 'earned' : ''}>{visited.has(dept.id) ? dept.icon : '○'}</span>)}
+            {plannedRoute.map((id) => { const dept = departmentCards.find((item) => item.id === id)!; return <span key={dept.id} className={visited.has(dept.id) ? 'earned' : ''}>{visited.has(dept.id) ? dept.icon : '○'}</span>; })}
           </div>
-          <small>已完成 {journey.results.length} / 4 个科室</small>
+          <small>今日路线完成 {plannedRoute.filter((id) => visited.has(id)).length} / {plannedRoute.length} 站</small>
         </div>
       </section>
 
@@ -849,8 +890,11 @@ function TriageDesk({ patient, onBack, onSave }: { patient: Patient; onBack: () 
   const [photoDataUrl, setPhotoDataUrl] = useState('');
   const [photoBackground, setPhotoBackground] = useState(patient.photoBackground || 'rainbow');
   const [photoError, setPhotoError] = useState('');
+  const [nameError, setNameError] = useState('');
   const [saving, setSaving] = useState(false);
-  const recommended = selected.includes('肚子痛') || selected.includes('走路咔嗒响') ? '🩻 X 光室' : selected.includes('笑不出来') || selected.includes('没精神') ? '💓 心脏科' : selected.includes('头晕晕') ? '🩻 X 光室' : '🦷 牙科';
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const recommendedDepartment = departmentCards.find((item) => item.id === buildTreatmentRoute(selected)[0])!;
+  const recommended = `${recommendedDepartment.icon} ${recommendedDepartment.name}`;
   const toggle = (symptom: Symptom) => setSelected((current) => current.includes(symptom) ? current.filter((item) => item !== symptom) : [...current, symptom]);
   const draftPatient = { ...patient, name, age, photoBackground, symptoms: selected };
   const choosePhoto = async (file?: File) => {
@@ -860,7 +904,13 @@ function TriageDesk({ patient, onBack, onSave }: { patient: Patient; onBack: () 
     catch (error) { setPhotoError(error instanceof Error ? error.message : '照片处理失败'); }
   };
   const submit = async () => {
-    if (!name.trim() || !age || saving) return;
+    if (saving) return;
+    if (!name.trim()) {
+      setNameError('先给小患者取一个名字，按钮就会带你去大厅');
+      nameInputRef.current?.focus();
+      return;
+    }
+    if (!age) return;
     setSaving(true);
     setPhotoError('');
     try { await onSave({ ...draftPatient, name: name.trim(), symptoms: selected.length ? selected : ['没精神'] }, photoDataUrl); }
@@ -883,8 +933,9 @@ function TriageDesk({ patient, onBack, onSave }: { patient: Patient; onBack: () 
           </div>
           <div className="photo-backgrounds"><span>选择病历背景</span>{[['rainbow','🌈'],['space','🚀'],['dinosaur','🦖'],['castle','🏰']].map(([value, icon]) => <button key={value} className={photoBackground === value ? 'active' : ''} onClick={() => setPhotoBackground(value)}>{icon}</button>)}</div>
           {photoError && <div className="form-error">⚠️ {photoError}</div>}
-          <label>小患者叫什么名字？</label>
-          <div className="kid-input"><span>🙂</span><input value={name} onChange={(e) => setName(e.target.value)} maxLength={12}/></div>
+          <label htmlFor="patient-name">小患者叫什么名字？</label>
+          <div className={`kid-input ${nameError ? 'has-error' : ''}`}><span>🙂</span><input id="patient-name" ref={nameInputRef} aria-label="小患者名字" placeholder="点这里输入名字，例如：小火箭" value={name} onChange={(e) => { setName(e.target.value); if (e.target.value.trim()) setNameError(''); }} maxLength={12}/></div>
+          {nameError && <div className="name-help">👆 {nameError}</div>}
           <label>今年几岁？</label>
           <div className="kid-input age"><span>🎂</span><input type="number" min="1" max="99" value={age} onChange={(e) => setAge(e.target.value)}/><b>岁</b></div>
           <label>今天哪里不舒服？ <small>可以选几个</small></label>
@@ -898,7 +949,7 @@ function TriageDesk({ patient, onBack, onSave }: { patient: Patient; onBack: () 
           <div className="route-line"><i/><i/><i/></div>
           <div className="route-destination"><small>第一站推荐</small><strong>{recommended}</strong><p>这只是游戏路线，也可以回大厅选择其他科室。</p></div>
           <div className="route-ticket"><span>排队号码</span><b>A-{String((name.length * 7 + Number(age || 0)) % 99).padStart(2, '0')}</b></div>
-          <button className="primary-hospital-btn" disabled={!name.trim() || !age || saving} onClick={submit}><BadgeCheck size={20}/>{saving ? '正在保存病历…' : '完成挂号，去大厅'}<ChevronRight size={18}/></button>
+          <button className={`primary-hospital-btn ${!name.trim() ? 'needs-name' : ''}`} disabled={saving} onClick={submit}><BadgeCheck size={20}/>{saving ? '正在保存病历…' : !name.trim() ? '先填写名字，再去大厅' : '完成挂号，去大厅'}<ChevronRight size={18}/></button>
         </aside>
       </section>
     </main>
@@ -1025,22 +1076,232 @@ function PharmacyDepartment({ patient, previousResults, onBack, onComplete }: { 
   );
 }
 
+type ExpansionDepartmentId = 'orthopedics' | 'internal' | 'gastro' | 'surgery';
+type ExpansionConfig = {
+  id: ExpansionDepartmentId;
+  name: string;
+  icon: string;
+  color: string;
+  english: string;
+  headline: string;
+  emphasis: string;
+  intro: string;
+  tile: string;
+  sticker: string;
+  drawPrompt: string;
+  conditions: readonly string[];
+  causes: readonly string[];
+  treatments: ReadonlyArray<readonly [string, string]>;
+  steps: ReadonlyArray<readonly [string, string]>;
+};
+
+const playfulCauses = [
+  '火箭降落时轻轻颠了一下', '积木舞会连续转了好多圈', '昨天帮助了太多小伙伴', '彩虹滑梯来回玩了十次', '睡觉时像小陀螺一样翻滚',
+  '恐龙追逐赛跑得太快', '脑袋里装进了太多故事', '泡泡派对玩得忘记休息', '搬运磁力片时特别认真', '超级英雄任务持续太久',
+] as const;
+
+const expansionConfigs: Record<ExpansionDepartmentId, ExpansionConfig> = {
+  orthopedics: {
+    id: 'orthopedics', name: '骨科', icon: '🦴', color: '#45a9df', english: 'BRICK BONE WORKSHOP', headline: '拼好身体里的', emphasis: '骨骼积木', intro: '按照蓝图依次装好脚、腿、身体和手臂，让骨骼工程重新稳稳站好。', tile: '浅蓝色磁力片', sticker: '骨骼工程师', drawPrompt: '画一副你设计的超级骨骼盔甲',
+    conditions: ['弹簧腿疲劳症','关节咔嗒打结症','骨骼积木排队症','鞋底不平衡症','膝盖齿轮偷懒症','手臂连接松松症','跑步缓冲不足症','身体支架歪歪症','跳跃弹力用完症','骨骼蓝图迷路症'],
+    causes: playfulCauses,
+    treatments: [['🧘','做三次慢慢伸展'],['🛏️','在软垫基地休息五分钟'],['🤗','收集三个加固拥抱'],['👣','沿直线慢慢走十步'],['🧱','搭一个骨骼支撑小屋'],['🌙','今晚给腿部充足睡眠'],['🥤','慢慢喝一杯能量水'],['🎵','跟着轻音乐摆摆手脚'],['🦸','暂停一次超级跳跃任务'],['⭐','每天涂亮一颗骨骼星']],
+    steps: [['🦶','装好小脚'],['🦵','接上腿部'],['🦴','放稳身体'],['💪','装好手臂']],
+  },
+  surgery: {
+    id: 'surgery', name: '积木外科', icon: '🩹', color: '#eb6687', english: 'GENTLE REPAIR STATION', headline: '修好小小的', emphasis: '外壳擦伤', intro: '这里没有可怕的手术，只有清洁泡泡、彩色补丁和勇敢创可贴。', tile: '粉色磁力片', sticker: '温柔维修大师', drawPrompt: '给小患者设计一张最酷的创可贴',
+    conditions: ['外壳擦花症','创可贴缺失症','零件轻微松动症','披风卡住症','按钮小磕碰症','头盔划痕症','手套磨损症','背包扣松松症','积木边角灰尘症','维修贴纸掉落症'],
+    causes: playfulCauses,
+    treatments: [['🫧','用想象泡泡轻轻清洁'],['🩹','贴好三枚勇敢补丁'],['🤗','维修后收集一个拥抱'],['🛋️','在维修站休息十分钟'],['🧸','请玩具护士陪伴'],['👐','轻轻检查四肢连接'],['🌈','给补丁画上彩虹'],['🛡️','今天穿好保护盔甲'],['⭐','每完成一次护理涂一颗星'],['💬','大声说我已经修好啦']],
+    steps: [['🫧','泡泡清洁'],['🔍','检查外壳'],['🟨','贴上补丁'],['🩹','盖好创可贴']],
+  },
+  internal: {
+    id: 'internal', name: '能量内科', icon: '🩺', color: '#ef8b52', english: 'INNER ENERGY LAB', headline: '调好身体的', emphasis: '能量仪表', intro: '把温度、睡眠、呼吸泡泡和快乐电量全部充到绿色区域。', tile: '橙色磁力片', sticker: '身体仪表专家', drawPrompt: '画出身体里最亮的能量核心',
+    conditions: ['能量电池不足症','睡眠充电失败症','快乐温度过高症','呼吸泡泡堵车症','故事装得太满症','核心亮度下降症','慢动作省电症','想象粒子迷路症','拥抱电量偏低症','午睡信号丢失症'],
+    causes: playfulCauses,
+    treatments: [['🌬️','做三次魔法深呼吸'],['🌙','提早进入枕头充电站'],['🥤','慢慢喝水补充能量'],['🤗','获得三个暖暖拥抱'],['🎵','听一首安静的小歌'],['🛋️','安静坐十分钟'],['☀️','到窗边收集温柔阳光'],['📚','一次只听一个故事'],['😄','讲一个让自己笑的笑话'],['⭐','每天记录一格快乐电量']],
+    steps: [['🌡️','调好温度'],['🌬️','疏通呼吸泡泡'],['🌙','补满睡眠'],['🔋','充好快乐电量']],
+  },
+  gastro: {
+    id: 'gastro', name: '肠胃科', icon: '🫃', color: '#9a75d6', english: 'TUMMY TRAIN STATION', headline: '开动肚肚里的', emphasis: '食物列车', intro: '按顺序打开五座小车站，让苹果、水和饼干安全通过肚肚迷宫。', tile: '紫色磁力片', sticker: '肚肚列车长', drawPrompt: '画一条食物列车穿过的肚肚隧道',
+    conditions: ['饼干碎屑塞车症','肚肚泡泡太多症','彩虹汤装太满症','消化齿轮偷懒症','苹果列车晚点症','喝水小河变窄症','早餐车站没开门症','肚肚鼓声太响症','蔬菜乘客迷路症','点心红灯等待症'],
+    causes: playfulCauses,
+    treatments: [['🥤','慢慢喝一小杯水'],['🍎','给苹果列车一个座位'],['🚶','饭后慢慢走十步'],['🫧','轻轻呼出三颗肚肚泡泡'],['🛋️','坐在软垫上休息'],['🥕','邀请一种彩色蔬菜乘车'],['⏰','让点心车站按时开门'],['🤗','给肚肚一个暖暖拥抱'],['🌙','睡觉时让消化齿轮休息'],['⭐','每次舒服一点就涂一颗星']],
+    steps: [['🍎','苹果站'],['🥤','水滴桥'],['🍪','饼干弯道'],['🫧','泡泡隧道'],['🏁','快乐终点']],
+  },
+};
+
+function makeExpansionResult(config: ExpansionConfig, patient: Patient): DepartmentResult {
+  const seed = patient.name.split('').reduce((sum, char) => sum + char.charCodeAt(0), Number(patient.age || 0) * 97) + config.id.length * 7919 + new Date().getDate();
+  const random = createRandom(seed);
+  const condition = choose(config.conditions, random);
+  const cause = choose(config.causes, random);
+  const start = Math.floor(random() * config.treatments.length);
+  const prescription = [0, 3, 6].map((offset, index) => {
+    const treatment = config.treatments[(start + offset) % config.treatments.length];
+    return { icon: treatment[0], text: treatment[1], targetCount: [3, 5, 7][index] };
+  });
+  const score = 84 + Math.floor(random() * 15);
+  return {
+    id: config.id, name: config.name, icon: config.icon, score, seed,
+    summary: condition,
+    detail: `${cause}，让身体里出现了“${condition}”。完成${config.name}任务后，各个积木连接已经重新变得稳稳的。`,
+    sticker: config.sticker, diagnosisEmoji: config.icon, drawPrompt: config.drawPrompt,
+    findings: [
+      { icon: '🟢', label: '积木连接', value: `${93 + Math.floor(random() * 7)}%` },
+      { icon: config.icon, label: '科室能量', value: `${70 + Math.floor(random() * 24)}%` },
+      { icon: '⭐', label: '勇敢指数', value: `${score}%` },
+    ],
+    prescription,
+  };
+}
+
+function ExpansionDepartment({ id, patient, onBack, onComplete }: { id: ExpansionDepartmentId; patient: Patient; onBack: () => void; onComplete: (result: DepartmentResult) => void }) {
+  const config = expansionConfigs[id];
+  const [step, setStep] = useState(0);
+  const [message, setMessage] = useState(`先完成：${config.steps[0][1]}`);
+  const result = useMemo(() => makeExpansionResult(config, patient), [config, patient]);
+  const done = step >= config.steps.length;
+  const chooseStep = (index: number) => {
+    if (index < step) return;
+    if (index !== step) { setMessage(`顺序还没到，先做“${config.steps[step][1]}”`); return; }
+    const next = step + 1;
+    setStep(next);
+    setMessage(next >= config.steps.length ? '全部完成，检查结果出来啦！' : `做得好！下一步：${config.steps[next][1]}`);
+  };
+  return (
+    <main className={`app-shell hospital-shell expansion-page ${id}-page`} style={{ '--expansion-color': config.color } as React.CSSProperties}>
+      <HospitalHeader room={`${config.name} · 新科室`} color={config.color} onBack={onBack}/>
+      <section className="department-hero compact-dept-hero"><div><span className="department-big-icon">{config.icon}</span><div className="eyebrow">{config.english}</div><h1>{config.headline}<br/><em>{config.emphasis}</em></h1><p>{config.intro}</p></div><VoiceButton text={`${config.name}到了。${config.intro}`}/></section>
+      <section className="play-panel expansion-lab">
+        {!done ? <>
+          <div className={`expansion-stage ${id}-stage`}>
+            <div className="expansion-monitor"><span>{config.icon} {config.name}任务</span><b>{step}/{config.steps.length}</b></div>
+            <div className="expansion-scene" aria-label={`${config.name}游戏画面`}>
+              {id === 'orthopedics' && <div className="bone-blueprint"><i>💀</i>{config.steps.map((item, index) => <span key={item[1]} className={index < step ? 'lit' : ''}>{item[0]}</span>)}</div>}
+              {id === 'surgery' && <div className="repair-patient"><span>🧑‍🚀</span><div>{config.steps.slice(0, step).map((item) => <i key={item[1]}>{item[0]}</i>)}</div></div>}
+              {id === 'internal' && <div className="energy-console">{config.steps.map((item, index) => <article key={item[1]}><span>{item[0]}</span><div><i style={{ width: `${index < step ? 100 : index === step ? 42 : 12}%` }}/></div><b>{index < step ? 'OK' : '…'}</b></article>)}</div>}
+              {id === 'gastro' && <div className="tummy-track">{config.steps.map((item, index) => <React.Fragment key={item[1]}><span className={index < step ? 'passed' : index === step ? 'current' : ''}>{item[0]}</span>{index < config.steps.length - 1 && <i>···</i>}</React.Fragment>)}</div>}
+            </div>
+            <p className="expansion-message">{message}</p>
+            <div className="expansion-controls">{config.steps.map((item, index) => <button key={item[1]} className={index < step ? 'complete' : index === step ? 'current' : ''} onClick={() => chooseStep(index)}><span>{index < step ? '✓' : item[0]}</span><b>{item[1]}</b></button>)}</div>
+          </div>
+          <aside className="game-instructions expansion-instructions"><span>{config.tile}任务</span><div className="instruction-emoji">{config.icon}</div><h3>搭建{config.name}</h3><ol><li><b>1</b>把小人放进对应颜色房间</li><li><b>2</b>按照发光提示完成任务</li><li><b>3</b>收下新的科室贴纸</li></ol><small>1000+ 种趣味病情组合</small></aside>
+        </> : <DepartmentResultCard result={result} onComplete={() => onComplete(result)}/>}
+      </section>
+    </main>
+  );
+}
+
+type PrintPack = 'quick' | 'prescription' | 'record' | 'building' | 'full';
+
+function PaperHeader({ icon, title, subtitle, patient, page }: { icon: string; title: string; subtitle: string; patient: Patient; page: string }) {
+  return <header className="paper-header"><div className="paper-hospital-mark">{icon}</div><div><small>咔嗒咔嗒积木医院 · {page}</small><h1>{title}</h1><p>{subtitle}</p></div><div className="paper-patient"><span>{patient.photoUrl ? <img src={patient.photoUrl} alt=""/> : '🧑‍🚀'}</span><b>{patient.name}</b><small>{patient.age} 岁</small></div></header>;
+}
+
+function QuickVisitPaper({ journey }: { journey: JourneyState }) {
+  const route = journey.plannedRoute?.length ? journey.plannedRoute : buildTreatmentRoute(journey.patient.symptoms);
+  return <section className="print-page quick-paper">
+    <PaperHeader icon="🏥" title="我的积木医院冒险" subtitle="检查记录 + 画画任务 + 勇敢盖章" patient={journey.patient} page="本次就诊单"/>
+    <div className="paper-info-strip"><span>📅 日期：{new Date().toLocaleDateString('zh-CN')}</span><span>🙂 今天：{journey.patient.symptoms.map((item) => symptomIcons[item]).join(' ') || '😊'}</span><span>🎫 路线：{route.length} 站</span></div>
+    <h2 className="paper-section-title">🛗 今天的电梯路线</h2>
+    <div className="paper-route" style={{ gridTemplateColumns: `repeat(${Math.min(route.length, 5)},1fr)` }}>{route.map((id, index) => { const dept = departmentCards.find((item) => item.id === id)!; const result = journey.results.find((item) => item.id === id); return <article key={id} className={result ? 'done' : ''}><i>{index + 1}</i><span>{dept.icon}</span><b>{dept.name}</b><small>{result ? `✓ ${result.summary}` : '○ 等待检查'}</small></article>; })}</div>
+    <div className="paper-two-columns">
+      <div className="paper-drawing-box"><b>✏️ 我哪里不舒服？</b><div className="body-doodle">🙂<i/><i/><i/><i/></div><small>可以画圈、涂颜色或贴贴纸</small></div>
+      <div className="paper-note-box"><b>🔎 方块医生发现了</b>{journey.results.slice(0,4).map((result) => <p key={result.id}><span>{result.icon}</span>{result.summary}</p>)}<div className="writing-lines"><i/><i/><i/><i/></div></div>
+    </div>
+    <div className="paper-brave-row"><span>今天我最勇敢的是：</span><i/><i/><i/><b>医生盖章 ○</b></div>
+    <footer className="paper-footer">这是亲子角色扮演游戏纸张，不是真正的医疗报告。真人不舒服时要马上告诉家长。</footer>
+  </section>;
+}
+
+function PrescriptionPaper({ journey }: { journey: JourneyState }) {
+  const collected = journey.results.flatMap((result) => result.prescription || []);
+  const tasks = (collected.length ? collected : [
+    { icon: '🥤', text: '慢慢喝一杯能量水', targetCount: 5 }, { icon: '🤗', text: '收集三个暖暖拥抱', targetCount: 3 },
+    { icon: '🌬️', text: '做三次魔法深呼吸', targetCount: 5 }, { icon: '🌙', text: '在枕头基地好好充电', targetCount: 7 },
+  ]).slice(0, 4);
+  return <section className="print-page prescription-paper">
+    <PaperHeader icon="⭐" title="快乐处方任务卡" subtitle="每完成一次，就亲手涂亮一颗星星" patient={journey.patient} page="纸上打卡游戏"/>
+    <div className="paper-reminder">这里只记录喝水、休息、拥抱和游戏任务，不是真实药物剂量。</div>
+    <div className="paper-task-list">{tasks.map((task, index) => <article key={`${task.text}-${index}`}><span>{task.icon}</span><div><small>快乐任务 {index + 1}</small><h2>{task.text}</h2><p>完成次数：</p><div className="task-circles">{Array.from({length: task.targetCount}).map((_, circle) => <i key={circle}>☆</i>)}</div></div><b>奖励<br/>贴纸区</b></article>)}</div>
+    <div className="mood-week"><h2>😊 我的恢复表情</h2>{['第1天','第2天','第3天','第4天','第5天','第6天','第7天'].map((day) => <div key={day}><b>{day}</b><span>😄　🙂　😴　😣</span><i>圈一个</i></div>)}</div>
+    <div className="paper-sign-row"><span>小医生签名：</span><i/><span>家长签名：</span><i/></div>
+    <footer className="paper-footer">完成任务不是比赛，累了就休息。真实身体不舒服时请告诉家长。</footer>
+  </section>;
+}
+
+function RecordDoodlePaper({ journey }: { journey: JourneyState }) {
+  const prompt = journey.results.find((item) => item.drawPrompt)?.drawPrompt || '画出你在医院里最喜欢的房间';
+  return <section className="print-page record-doodle-paper">
+    <PaperHeader icon="📖" title="小医生手绘病历" subtitle="这张病历由小朋友自己完成" patient={journey.patient} page="病历记录页"/>
+    <div className="record-prompts"><div><b>🌤️ 今天的天气</b><span>☀️　☁️　🌧️　❄️</span></div><div><b>😊 今天的心情</b><span>😄　🙂　😴　😣</span></div><div><b>🩺 我是小医生</b><span>名字：________________</span></div></div>
+    <div className="big-drawing-space"><b>🎨 {prompt}</b><span>在这里画一大幅画</span><i/><i/><i/></div>
+    <div className="record-bottom-grid"><div><b>💬 小患者告诉我</b><i/><i/><i/><i/></div><div><b>🔍 我检查发现</b><i/><i/><i/><i/></div></div>
+    <div className="sticker-garden"><b>🏅 勇敢贴纸花园</b>{Array.from({length:6}).map((_, index) => <i key={index}>☆</i>)}</div>
+    <footer className="paper-footer">病历编号：PLAY-{journey.journeyToken.slice(0,8).toUpperCase()}　·　纯游戏记录</footer>
+  </section>;
+}
+
+function BuildingPosterPaper({ journey, part }: { journey: JourneyState; part: 'top' | 'bottom' }) {
+  const floors = part === 'top' ? buildingFloors.slice(0, 3) : buildingFloors.slice(3);
+  const visited = new Set(journey.results.map((item) => item.id));
+  return <section className={`print-page building-poster-paper ${part}`}>
+    <PaperHeader icon={part === 'top' ? '🚁' : '🚑'} title={part === 'top' ? '可放小人的医院大楼' : '医院大楼 · 欢迎大厅'} subtitle={part === 'top' ? '第 1 张：贴在第 2 张上方' : '第 2 张：与第 1 张沿虚线拼接'} patient={journey.patient} page="双页游戏垫"/>
+    {part === 'bottom' && <div className="poster-join-line">✂ 拼接线：把第 1 张纸贴在这里 · ALIGN HERE</div>}
+    <div className="paper-building">{floors.map((floor) => <div className="paper-floor" key={floor.floor}><strong>{floor.floor}F<small>{floor.name}</small></strong><div className="paper-room" style={{ '--paper-room': floor.rooms[0].color } as React.CSSProperties}><span>{floor.rooms[0].icon}</span><b>{floor.rooms[0].name}</b><i>{floor.rooms[0].departmentId && visited.has(floor.rooms[0].departmentId) ? '✓ 去过啦' : '盖章 ○'}</i></div><div className="paper-lift"><b>{floor.floor}</b><span>把小人<br/>放这里</span><i>⇅</i></div><div className="paper-room" style={{ '--paper-room': floor.rooms[1].color } as React.CSSProperties}><span>{floor.rooms[1].icon}</span><b>{floor.rooms[1].name}</b><i>{floor.rooms[1].departmentId && visited.has(floor.rooms[1].departmentId) ? '✓ 去过啦' : '盖章 ○'}</i></div></div>)}</div>
+    {part === 'top' && <div className="poster-join-line">✂ 拼接线：把第 2 张纸接在这里 · ALIGN HERE</div>}
+    {part === 'bottom' && <div className="paper-cutouts"><b>纸上小道具 · 可以涂色后剪下</b><span>🎫 电梯卡</span><span>👩‍⚕️ 医生牌</span><span>🚑 救护车</span><span>⭐ 勇敢星</span></div>}
+    <footer className="paper-footer">可以直接把乐高小人平放在纸上乘电梯。需要剪纸时请让大人帮忙。</footer>
+  </section>;
+}
+
+function PrintCenter({ journey, onBack }: { journey: JourneyState; onBack: () => void }) {
+  const [pack, setPack] = useState<PrintPack>('full');
+  const packs: Array<{ id: PrintPack; icon: string; title: string; description: string; pages: number }> = [
+    { id: 'quick', icon: '📝', title: '一页就诊单', description: '路线、检查结果和画画区', pages: 1 },
+    { id: 'prescription', icon: '⭐', title: '处方打卡表', description: '涂星星记录执行次数', pages: 1 },
+    { id: 'record', icon: '🎨', title: '手绘病历页', description: '大空间写写画画', pages: 1 },
+    { id: 'building', icon: '🏥', title: '大楼游戏垫', description: '两张 A4 拼接，可放小人', pages: 2 },
+    { id: 'full', icon: '🎒', title: '完整纸上游戏包', description: '以上内容全部打印', pages: 5 },
+  ];
+  const pages = pack === 'quick' ? [<QuickVisitPaper key="quick" journey={journey}/>]
+    : pack === 'prescription' ? [<PrescriptionPaper key="prescription" journey={journey}/>]
+      : pack === 'record' ? [<RecordDoodlePaper key="record" journey={journey}/>]
+        : pack === 'building' ? [<BuildingPosterPaper key="top" journey={journey} part="top"/>, <BuildingPosterPaper key="bottom" journey={journey} part="bottom"/>]
+          : [<QuickVisitPaper key="quick" journey={journey}/>, <PrescriptionPaper key="prescription" journey={journey}/>, <RecordDoodlePaper key="record" journey={journey}/>, <BuildingPosterPaper key="top" journey={journey} part="top"/>, <BuildingPosterPaper key="bottom" journey={journey} part="bottom"/>];
+  const current = packs.find((item) => item.id === pack)!;
+  return <main className="app-shell hospital-shell print-center-page">
+    <HospitalHeader room="纸上游戏打印中心 · 1F" color="#ef765b" onBack={onBack}/>
+    <section className="print-center-screen">
+      <div className="print-center-hero"><div><div className="eyebrow"><Printer size={17}/> PAPER PLAY LAB</div><h1>把积木医院<br/><em>带到纸上玩</em></h1><p>选择一份打印包，给小朋友留下画画、打卡、盖章和移动乐高小人的空间。</p></div><div className="printer-character">🖨️<span>纸张准备好啦！</span></div></div>
+      <div className="print-pack-grid">{packs.map((item) => <button key={item.id} className={pack === item.id ? 'active' : ''} onClick={() => setPack(item.id)}><span>{item.icon}</span><div><small>{item.pages} 张 A4</small><h2>{item.title}</h2><p>{item.description}</p></div><i>{pack === item.id ? '✓' : '○'}</i></button>)}</div>
+      <div className="print-launch-bar"><div><b>{current.icon} {current.title}</b><span>将打印 {current.pages} 页 · 建议开启“背景图形”</span></div><button onClick={() => window.print()}><Printer size={20}/>开始打印 {current.pages} 页</button></div>
+      <div className="print-preview-label"><span>页面预览</span><p>下面显示实际纸张内容；打印时顶部控制区会自动隐藏。</p></div>
+    </section>
+    <div className="print-preview-stack">{pages}</div>
+  </main>;
+}
+
 function DischargeCenter({ journey, onBack, onArchive, onNewVisit, onSwitch, archiving = false }: { journey: JourneyState; onBack: () => void; onArchive: () => Promise<void> | void; onNewVisit: () => void; onSwitch: () => void; archiving?: boolean }) {
-  const completed = journey.results.length;
-  const average = completed ? Math.round(journey.results.reduce((sum, result) => sum + result.score, 0) / completed) : 100;
+  const plannedRoute = journey.plannedRoute?.length ? journey.plannedRoute : buildTreatmentRoute(journey.patient.symptoms);
+  const routeResults = journey.results.filter((result) => plannedRoute.includes(result.id));
+  const completed = routeResults.length;
+  const routeComplete = completed === plannedRoute.length;
+  const average = completed ? Math.round(routeResults.reduce((sum, result) => sum + result.score, 0) / completed) : 100;
   return (
     <main className="app-shell hospital-shell discharge-page">
       <HospitalHeader room="出院中心 · 07" color="#a474df" onBack={onBack}/>
-      <section className="discharge-screen-head"><div><div className="eyebrow"><Trophy size={16}/> BRAVE PATIENT AWARD</div><h1>勇敢小患者<br/><em>出院中心</em></h1><p>所有科室的检查结果和贴纸，都装进这张纪念证书里。</p></div><div className="report-actions"><button onClick={() => window.print()}><Printer size={17}/> 打印 A4 证书</button>{journey.archivedVisitId ? <button className="finish-dept" onClick={onNewVisit}><RotateCcw size={17}/> 开始新就诊</button> : <button className="finish-dept" disabled={!completed || archiving} onClick={onArchive}><BadgeCheck size={17}/>{archiving ? '正在归档…' : '正式出院并安排回访'}</button>}<button onClick={onSwitch}><UserRound size={17}/> 换患者</button></div></section>
+      <section className="discharge-screen-head"><div><div className="eyebrow"><Trophy size={16}/> BRAVE PATIENT AWARD</div><h1>勇敢小患者<br/><em>出院中心</em></h1><p>所有科室的检查结果和贴纸，都装进这张纪念证书里。</p></div><div className="report-actions"><button onClick={() => window.print()}><Printer size={17}/> 打印 A4 证书</button>{journey.archivedVisitId ? <button className="finish-dept" onClick={onNewVisit}><RotateCcw size={17}/> 开始新就诊</button> : <button className="finish-dept" disabled={!routeComplete || archiving} onClick={onArchive}><BadgeCheck size={17}/>{archiving ? '正在归档…' : routeComplete ? '正式出院并安排回访' : `还差 ${plannedRoute.length - completed} 站`}</button>}<button onClick={onSwitch}><UserRound size={17}/> 换患者</button></div></section>
       <section className="report discharge-report">
         <div className="report-topline"/>
         <header className="report-header"><div className="report-title"><div className="report-seal purple"><Trophy size={28}/></div><div><span>咔嗒咔嗒积木医院 · 出院中心</span><h2>勇敢小患者出院证书</h2><p>BRAVE MINI PATIENT CERTIFICATE</p></div></div><div className="certificate-score"><strong>{average}</strong><span>综合能量</span></div></header>
-        <div className="patient-strip"><div><span>患者姓名</span><b>{journey.patient.name}</b></div><div><span>积木年龄</span><b>{journey.patient.age} 岁</b></div><div><span>完成科室</span><b>{completed} / 4</b></div><div><span>症状表情</span><b>{journey.patient.symptoms.map((s) => symptomIcons[s]).join(' ')}</b></div><div><span>出院日期</span><b>{new Date().toLocaleDateString('zh-CN')}</b></div></div>
+        <div className="patient-strip"><div><span>患者姓名</span><b>{journey.patient.name}</b></div><div><span>积木年龄</span><b>{journey.patient.age} 岁</b></div><div><span>完成路线</span><b>{completed} / {plannedRoute.length}</b></div><div><span>症状表情</span><b>{journey.patient.symptoms.map((s) => symptomIcons[s]).join(' ')}</b></div><div><span>出院日期</span><b>{new Date().toLocaleDateString('zh-CN')}</b></div></div>
         <div className="discharge-report-body">
-          <div className="certificate-hero"><span>🎖️</span><div><small>{journey.archivedVisitId ? '病历已经归档 · 回访任务已安排' : '医院正式宣布'}</small><h2>{journey.patient.name} 是一位非常勇敢的小患者！</h2><p>{completed >= 4 ? '所有检查和配药任务都已完成，可以带着满满的能量回家啦。' : `已经完成 ${completed} 个科室，还可以回医院继续收集贴纸。`}</p></div></div>
+          <div className="certificate-hero"><span>🎖️</span><div><small>{journey.archivedVisitId ? '病历已经归档 · 回访任务已安排' : '医院正式宣布'}</small><h2>{journey.patient.name} 是一位非常勇敢的小患者！</h2><p>{routeComplete ? '今天的检查和配药路线都已完成，可以带着满满的能量回家啦。' : `已经完成 ${completed} 站，还可以回医院继续完成今日路线。`}</p></div></div>
           <div className="certificate-section-title"><span>🏥</span><div><h3>科室检查记录</h3><p>DEPARTMENT JOURNEY</p></div></div>
           <div className="journey-stamp-grid">
-            {departmentCards.map((dept) => {
+            {plannedRoute.map((id) => departmentCards.find((dept) => dept.id === id)!).map((dept) => {
               const result = journey.results.find((item) => item.id === dept.id);
               return <article key={dept.id} className={result ? 'completed' : 'pending'}><span>{result ? dept.icon : '○'}</span><div><small>{dept.name}</small><h4>{result ? result.summary : '等待检查'}</h4><p>{result ? result.detail : `下次可以用${dept.tile}搭建这里`}</p></div>{result && <b>{result.score}</b>}</article>;
             })}
@@ -1067,13 +1328,18 @@ const dischargePreviewJourney: JourneyState = {
     { id: 'heart', name: '心脏科', icon: '💓', score: 96, summary: '勇气核心节奏稳定', detail: '咚咚节奏整齐，勇气核心拥有很多暖暖粒子。', sticker: '心跳节奏大师' },
     { id: 'dental', name: '牙科', icon: '🦷', score: 94, summary: '糖果虫已经全部搬家', detail: '八颗牙齿都很坚固，泡泡牙刷完成清洁。', sticker: '刷牙小卫士' },
     { id: 'pharmacy', name: '彩虹药房', icon: '💊', score: 98, summary: '彩虹能量药已经配好', detail: '三种颜色装进药袋，快乐处方已经准备完成。', sticker: '彩虹配药小助手' },
-  ], journeyToken: 'preview-journey', startedAt: new Date().toISOString(), archivedVisitId: 'preview-visit',
+    makeExpansionResult(expansionConfigs.orthopedics, previewPatient),
+    makeExpansionResult(expansionConfigs.internal, previewPatient),
+    makeExpansionResult(expansionConfigs.gastro, previewPatient),
+    makeExpansionResult(expansionConfigs.surgery, previewPatient),
+  ], plannedRoute: ['gastro', 'internal', 'heart', 'pharmacy'], journeyToken: 'preview-journey', startedAt: new Date().toISOString(), archivedVisitId: 'preview-visit',
 };
 
 function HospitalApp() {
   const params = new URLSearchParams(window.location.search);
   const isPrintPreview = params.get('mode') === 'print-preview';
   const isDischargePreview = params.get('mode') === 'discharge-preview';
+  const isPaperPreview = params.get('mode') === 'paper-preview';
   const [route, setRoute] = useState('patients');
   const [patients, setPatients] = useState<Patient[]>([]);
   const [journey, setJourney] = useState<JourneyState | null>(null);
@@ -1106,7 +1372,7 @@ function HospitalApp() {
   };
 
   useEffect(() => {
-    if (booted.current || isPrintPreview || isDischargePreview) { setLoading(false); return; }
+    if (booted.current || isPrintPreview || isDischargePreview || isPaperPreview) { setLoading(false); return; }
     booted.current = true;
     (async () => {
       try {
@@ -1125,13 +1391,13 @@ function HospitalApp() {
         else setLoading(false);
       } catch (error) { setServerError(error instanceof Error ? error.message : '无法连接积木医院数据库'); setLoading(false); }
     })();
-  }, [isPrintPreview, isDischargePreview]);
+  }, [isPrintPreview, isDischargePreview, isPaperPreview]);
 
   useEffect(() => {
-    if (!journey?.patient.id || isPrintPreview || isDischargePreview) return;
+    if (!journey?.patient.id || isPrintPreview || isDischargePreview || isPaperPreview) return;
     const timer = window.setTimeout(() => clinicApi.saveJourney(journey.patient.id, journey).catch(() => {}), 180);
     return () => window.clearTimeout(timer);
-  }, [journey, isPrintPreview, isDischargePreview]);
+  }, [journey, isPrintPreview, isDischargePreview, isPaperPreview]);
 
   const completeDepartment = (result: DepartmentResult, nextPatient?: Patient) => {
     setJourney((current) => current ? ({ ...current, patient: nextPatient ?? current.patient, results: [...current.results.filter((item) => item.id !== result.id), result], archivedVisitId: undefined }) : current);
@@ -1144,7 +1410,7 @@ function HospitalApp() {
       ? await clinicApi.updatePatient(draft.id, { name: draft.name, age: draft.age, photoDataUrl: photoDataUrl || undefined, photoBackground: draft.photoBackground })
       : await clinicApi.createPatient({ name: draft.name, age: draft.age, photoDataUrl: photoDataUrl || undefined, photoBackground: draft.photoBackground });
     const patient = patientFromApi(apiPatient, draft.symptoms);
-    const nextJourney = draft.id && journey ? { ...journey, patient } : createJourney(patient);
+    const nextJourney = { ...(draft.id && journey ? journey : createJourney(patient)), patient, plannedRoute: buildTreatmentRoute(patient.symptoms), archivedVisitId: undefined };
     setJourney(nextJourney);
     await clinicApi.saveJourney(patient.id, nextJourney);
     await refreshPatients();
@@ -1169,7 +1435,7 @@ function HospitalApp() {
 
   const newVisit = async () => {
     if (!journey) return;
-    const next = createJourney({ ...journey.patient, symptoms: [] });
+    const next = { ...createJourney({ ...journey.patient, symptoms: [] }), plannedRoute: buildTreatmentRoute([]) };
     setJourney(next);
     setRoute('triage');
     await clinicApi.saveJourney(next.patient.id, next);
@@ -1184,18 +1450,28 @@ function HospitalApp() {
 
   if (isPrintPreview) return <XRayDepartment patient={defaultJourney.patient} onBack={() => {}} onComplete={() => {}}/>;
   if (isDischargePreview) return <DischargeCenter journey={dischargePreviewJourney} onBack={() => {}} onArchive={() => {}} onNewVisit={() => {}} onSwitch={() => {}}/>;
+  if (isPaperPreview) return <PrintCenter journey={dischargePreviewJourney} onBack={() => {}}/>;
   if (loading) return <main className="app-shell hospital-shell"><HospitalHeader room="病历系统启动中"/><div className="hospital-loading"><span>🏥</span><h2>正在打开积木医院数据库…</h2><i/></div></main>;
   if (serverError) return <main className="app-shell hospital-shell"><HospitalHeader room="数据库未连接" color="#ff6a5b"/><div className="hospital-error"><span>🔌</span><h2>积木医院服务器没有连接</h2><p>{serverError}</p><code>请使用 npm run dev 启动完整医院</code><button onClick={() => window.location.reload()}>重新连接</button></div></main>;
   if (route === 'patients' || !journey) return <PatientWard patients={patients} onSelect={selectPatient} onNew={() => { setJourney(createJourney(emptyPatient())); setRoute('triage-new'); }}/>
   if (route === 'triage' || route === 'triage-new') return <TriageDesk patient={journey.patient} onBack={() => setRoute(route === 'triage-new' ? 'patients' : 'lobby')} onSave={savePatient}/>;
   if (route === 'records') return <PatientRecordBook patient={journey.patient} history={history} onBack={() => setRoute('lobby')} onFollowUps={() => setRoute('followups')}/>;
   if (route === 'followups') return <FollowUpCenter patient={journey.patient} history={history} onBack={() => setRoute('lobby')} onComplete={completeFollowUp}/>;
+  if (route === 'print') return <PrintCenter journey={journey} onBack={() => setRoute('lobby')}/>;
   if (route === 'xray') return <XRayDepartment patient={journey.patient} onBack={() => setRoute('lobby')} onComplete={completeDepartment}/>;
+  if (route === 'orthopedics') return <ExpansionDepartment id="orthopedics" patient={journey.patient} onBack={() => setRoute('lobby')} onComplete={completeDepartment}/>;
+  if (route === 'internal') return <ExpansionDepartment id="internal" patient={journey.patient} onBack={() => setRoute('lobby')} onComplete={completeDepartment}/>;
   if (route === 'heart') return <HeartDepartment patient={journey.patient} onBack={() => setRoute('lobby')} onComplete={completeDepartment}/>;
+  if (route === 'gastro') return <ExpansionDepartment id="gastro" patient={journey.patient} onBack={() => setRoute('lobby')} onComplete={completeDepartment}/>;
+  if (route === 'surgery') return <ExpansionDepartment id="surgery" patient={journey.patient} onBack={() => setRoute('lobby')} onComplete={completeDepartment}/>;
   if (route === 'dental') return <DentalDepartment patient={journey.patient} onBack={() => setRoute('lobby')} onComplete={completeDepartment}/>;
   if (route === 'pharmacy') return <PharmacyDepartment patient={journey.patient} previousResults={journey.results} onBack={() => setRoute('lobby')} onComplete={completeDepartment}/>;
   if (route === 'discharge') return <DischargeCenter journey={journey} onBack={() => setRoute('lobby')} onArchive={archiveJourney} onNewVisit={newVisit} onSwitch={() => setRoute('patients')} archiving={archiving}/>;
   return <HospitalLobby journey={journey} history={history} onRoute={setRoute} onSwitch={() => setRoute('patients')}/>;
 }
 
-createRoot(document.getElementById('root')!).render(<React.StrictMode><HospitalApp /></React.StrictMode>);
+const rootElement = document.getElementById('root')!;
+const browserWindow = window as typeof window & { __clickClackRoot?: ReturnType<typeof createRoot> };
+const appRoot = browserWindow.__clickClackRoot ?? createRoot(rootElement);
+browserWindow.__clickClackRoot = appRoot;
+appRoot.render(<React.StrictMode><HospitalApp /></React.StrictMode>);

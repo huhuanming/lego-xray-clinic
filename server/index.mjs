@@ -80,7 +80,9 @@ function getPatient(id) {
 }
 
 function mapResult(row) {
-  return { id: row.department_id, name: row.name, summary: row.summary, detail: row.detail, score: row.score, sticker: row.sticker };
+  let expanded = {};
+  try { expanded = row.result_json ? JSON.parse(row.result_json) : {}; } catch {}
+  return { ...expanded, id: row.department_id, name: row.name, summary: row.summary, detail: row.detail, score: row.score, sticker: row.sticker };
 }
 
 function getHistory(patientId) {
@@ -199,10 +201,10 @@ const server = http.createServer(async (req, res) => {
       transaction(() => {
         db.prepare('INSERT INTO visits(id,journey_token,patient_id,symptoms_json,overall_score,diagnosis_code,started_at,completed_at) VALUES(?,?,?,?,?,?,?,?)')
           .run(visitId, body.journeyToken || randomUUID(), body.patientId, JSON.stringify(body.symptoms || []), score, body.diagnosisCode || '', body.startedAt || now, now);
-        const insertResult = db.prepare('INSERT INTO department_results(id,visit_id,department_id,name,summary,detail,score,sticker) VALUES(?,?,?,?,?,?,?,?)');
+        const insertResult = db.prepare('INSERT INTO department_results(id,visit_id,department_id,name,summary,detail,score,sticker,result_json) VALUES(?,?,?,?,?,?,?,?,?)');
         const insertReward = db.prepare('INSERT OR IGNORE INTO rewards(id,patient_id,source_id,code,name,earned_at) VALUES(?,?,?,?,?,?)');
         for (const result of results) {
-          insertResult.run(randomUUID(), visitId, result.id, result.name, result.summary, result.detail, Number(result.score), result.sticker);
+          insertResult.run(randomUUID(), visitId, result.id, result.name, result.summary, result.detail, Number(result.score), result.sticker, JSON.stringify(result));
           insertReward.run(randomUUID(), body.patientId, `${visitId}:${result.id}`, `dept-${result.id}`, result.sticker, now);
         }
         const followUpPlan = [

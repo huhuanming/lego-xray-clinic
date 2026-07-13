@@ -79,6 +79,11 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_followups_patient ON follow_ups(patient_id, due_at);
 `);
 
+const resultColumns = db.prepare('PRAGMA table_info(department_results)').all();
+if (!resultColumns.some((column) => column.name === 'result_json')) {
+  db.exec('ALTER TABLE department_results ADD COLUMN result_json TEXT');
+}
+
 export function transaction(fn) {
   db.exec('BEGIN IMMEDIATE');
   try {
